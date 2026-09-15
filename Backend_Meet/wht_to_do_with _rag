@@ -1,0 +1,5 @@
+1. user upload doc 
+2. store that doc locally and path in db and extract the text from it 
+give it to gemni embedding  create a vector  store it in pg vector 
+3. user ask a question : 1> embedding the question  match with pg vector 
+                         2> wht result you got and what the user ask   just send both to ai  for better ans

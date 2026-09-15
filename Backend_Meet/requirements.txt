@@ -1,0 +1,59 @@
+# --- Your Current Installed Environment ---
+# aiomysql==0.3.2
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+bcrypt==5.0.0
+cffi==2.1.1
+click==8.4.2
+colorama==0.4.6
+cryptography==50.0.1
+dnspython==2.8.0
+ecdsa==0.19.2
+email-validator==2.3.0
+fastapi==0.141.1
+fastapi-redis-sdk==0.8.0
+greenlet==3.5.5
+h11==0.16.0
+idna==3.19
+itsdangerous==2.2.0
+psycopg==3.2.10
+psycopg-binary==3.2.10
+pwdlib==0.3.1
+pyasn1==0.6.4
+pycparser==3.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+pydantic-settings==2.15.0
+PyMySQL==1.2.0
+python-dotenv==1.2.3
+python-jose==3.3.0
+python-multipart==0.0.32
+redis==8.1.0
+rsa==4.9.1
+six==1.17.0
+SQLAlchemy==2.0.52
+starlette==1.6.0
+typing_extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.3
+uvicorn==0.52.4
+
+# --- Missing Required Additions for Your Architecture Requirements ---
+celery>=5.3.0          # The core BullMQ equivalent worker engine
+asgiref>=3.7.0         # Bridges sync Celery tasks back to async Postgres DB operations
+aiofiles>=23.2.0       # Asynchronously streams massive 2GB+ video blocks to your disk
+stripe>=8.0.0          # Manages secure customer billing logic & subscription tier modifications
+websockets>=13.0       # Required inside Uvicorn for handling your custom real-time chat hubs
+
+# --- google-genai-2.23.0---
+
+google-genai>=2.23.0
+openai-whisper
+torch 
+ollama
+pypdf-6.18.1
+google-generativeai
+pgvector
