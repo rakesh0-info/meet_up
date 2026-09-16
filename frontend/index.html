@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Portal & Video AI Workbench</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- LiveKit Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header id="app-header" class="hidden">
+        <div class="user-greeting">
+            <span id="greeting-text">Welcome</span>
+            <span id="role-badge" class="badge-role">USER</span>
+        </div>
+
+        <div class="header-right">
+            <!-- Wallet Widget -->
+            <div id="wallet-widget" class="wallet-badge">
+                Wallet: <span id="wallet-token-count">0</span> Tokens
+            </div>
+
+            <!-- Notifications Dropdown -->
+            <div class="notification-container">
+                <div class="bell-icon" id="bell-btn" onclick="toggleNotifications()">
+                    🔔 <span class="badge hidden" id="notif-badge">0</span>
+                </div>
+                <div class="dropdown hidden" id="notif-dropdown">
+                    <h3>Notifications</h3>
+                    <div id="notif-list">
+                        <p class="empty-msg">No unread notifications</p>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <!-- 1. AUTHENTICATION (LOGIN / REGISTER) -->
+        <div id="auth-screen" class="card">
+            <div class="tab-buttons">
+                <button id="tab-login-btn" class="active" onclick="switchAuthTab('login')">Login</button>
+                <button id="tab-register-btn" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <h2>Login</h2>
+                <input type="email" id="login-email" placeholder="Email Address" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button type="submit">Sign In</button>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+                <h2>Register</h2>
+                <input type="text" id="reg-name" placeholder="Full Name" required>
+                <input type="email" id="reg-email" placeholder="Email Address" required>
+                <input type="password" id="reg-password" placeholder="Password" required>
+                <button type="submit">Create Account</button>
+            </form>
+        </div>
+
+        <!-- 2. DEDICATED OTP VERIFICATION SCREEN -->
+        <div id="otp-screen" class="card hidden">
+            <h2>Enter Verification OTP</h2>
+            <p class="otp-subtext">OTP sent to: <strong id="otp-target-email"></strong></p>
+            <form onsubmit="handleVerifyOTP(event)">
+                <input type="text" id="otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off">
+                <button type="submit">Verify Account</button>
+            </form>
+        </div>
+
+        <!-- 3. MAIN DASHBOARD SCREEN -->
+        <div id="dashboard-screen" class="dashboard hidden">
+            
+            <!-- ADMIN VIEW: System & User Usage Analytics -->
+            <section id="admin-summary-section" class="section hidden">
+                <h2>System Analytics & Token Usage</h2>
+                <div id="admin-usage-card" class="summary-card">
+                    <p>Loading stats...</p>
+                </div>
+            </section>
+
+            <!-- DASHBOARD VIDEO CALL AI SUMMARY CARD -->
+            <section id="dashboard-summary-card" class="section hidden">
+                <h2>🤖 Recent Video Call AI Summary</h2>
+                <div class="summary-card dashboard-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="badge-role">Room: <span id="dashboard-summary-room">N/A</span></span>
+                        <button onclick="document.getElementById('dashboard-summary-card').classList.add('hidden')">Dismiss</button>
+                    </div>
+                    <p id="dashboard-summary-text" style="white-space: pre-line; color: #f8fafc; font-size: 0.95rem;">
+                        Summary loading...
+                    </p>
+                </div>
+            </section>
+
+            <!-- LIVE VIDEO CALL WORKBENCH SECTION -->
+            <section id="video-call-section" class="section hidden">
+                <div class="card full-width">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>Live Video Session & AI Workbench (Room: <span id="active-room-display">None</span>)</h2>
+                        <button class="btn-danger" onclick="endCallSession()">End Call</button>
+                    </div>
+
+                    <div id="low-token-alert" class="alert-banner hidden">
+                        ⚠️ Low Token Warning: Wallet balance is 20 tokens or lower!
+                    </div>
+
+                    <!-- Video Grid & Captions Overlay -->
+                    <div class="video-grid">
+                        <video id="localVideo" autoplay muted playsinline></video>
+                        <video id="remoteVideo" autoplay playsinline></video>
+                        <div id="captionOverlay" class="caption-overlay hidden">
+                            <span id="captionSpeaker"></span>: <span id="captionText"></span>
+                        </div>
+                    </div>
+
+                    <!-- Speech Input Control -->
+                    <div class="speech-controls">
+                        <input type="text" id="speechInput" placeholder="Type or simulate speech input..." />
+                        <button onclick="sendSpeechInput()">Send Speech Chunk</button>
+                    </div>
+
+                    <!-- Dual Section: Live Transcript & Summary -->
+                    <div class="transcript-summary-grid">
+                        <div>
+                            <h3>Real-Time Live English Transcript</h3>
+                            <div id="transcriptBox" class="transcript-box">
+                                <p class="empty-msg">Transcripts will render live during the call...</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>AI Call Summary</h3>
+                            <button onclick="fetchSummary()" style="margin-bottom: 8px;">Generate Summary</button>
+                            <textarea id="summaryDisplay" readonly placeholder="Click button above to generate Gemini summary..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- USER FEATURE PLACEHOLDERS -->
+            <section id="user-features-section" class="section">
+                <h2>Interactive Services</h2>
+                <div class="grid">
+                    <div class="item-card feature-card">
+                        <h3>📹 Video Call Station</h3>
+                        <p>Select any user from the directory below to initiate a video session.</p>
+                    </div>
+
+                    <div class="item-card feature-card">
+                        <h3>📄 Talk to AI via Document</h3>
+                        <p>Upload a document (PDF/DOCX) to interact with AI.</p>
+                        <input type="file" id="doc-upload-input" accept=".pdf,.docx,.txt" style="margin-top: 5px;">
+                        <button onclick="handleDocUploadPlaceholder()">Upload & Analyze</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TOKEN SUBSCRIPTION PLANS -->
+            <section class="section">
+                <h2>Token Top-Up Plans</h2>
+                <div id="plans-grid" class="grid"></div>
+            </section>
+
+            <!-- USER DIRECTORY -->
+            <section class="section">
+                <h2>User Directory</h2>
+                <div id="users-grid" class="grid"></div>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

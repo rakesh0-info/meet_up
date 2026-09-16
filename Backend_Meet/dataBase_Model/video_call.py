@@ -18,7 +18,7 @@ class VideoCall(Base):
         Enum(CallStatus, name="CallStatus", schema="Meet_up", inherit_schema=True),
         default=CallStatus.NO_CALL,
         nullable=False
-    )  # ACTIVE, COMPLETED, TERMINATED_NO_TOKENS
+    )
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
     duration_seconds = Column(Integer, default=0)

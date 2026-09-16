@@ -15,18 +15,13 @@ redis_client = redis.Redis.from_url(
 )
 
 
-def create_notification(
-    db: Session,
-    user_id: int,
-    message: str,
-    notification_type: str,
-):
+def create_notification(db: Session, user_id: int, message: str, notification_type: str, room_id: str = None):
     notification = Notification(
         user_id=user_id,
         message=message,
         notification_type=notification_type,
+        room_id=room_id
     )
-
     db.add(notification)
     db.commit()
     db.refresh(notification)

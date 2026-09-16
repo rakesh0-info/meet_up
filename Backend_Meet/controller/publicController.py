@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 import enum
 import os
-from typing import Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import (
@@ -12,6 +12,7 @@ from fastapi import (
     Cookie,
     Depends,
     HTTPException,
+    Query,
     Request,
     Response,
     WebSocket,
@@ -20,7 +21,7 @@ from fastapi import (
 )
 from jose import JWTError, jwt
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import stripe
 
 from dataBase_Model.subscription_db import SubscriptionPlan
@@ -38,7 +39,7 @@ from requestmodel.friend_request_request import friend_request_Model
 from requestmodel.loginRequest_model import LoginRequest
 from requestmodel.optRequest import otp_req
 from security.role_authenticated import get_authenticated_active_user, get_websocket_user, require_roles
-from schemas.user_schema import UserRegister
+from schemas.user_schema import UserRegister, UserResponse
 from util_validate.password_security import hash_password, verify_password
 from service.notification_service import create_notification
 
@@ -47,6 +48,21 @@ from dataBase_Model.notifiactionModel import Notification
 from enums.Request_Status import re_status
 
 import os
+import shutil
+import uuid
+
+from google import genai
+from google.genai import types
+from fastapi import UploadFile, File, BackgroundTasks
+from dataBase_Model.document_rag import DocumentChat, DocumentChunk
+from service.rag_service import process_document_background
+
+
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
+
+
 
 
 
@@ -109,6 +125,13 @@ def fulfill_subscription(session: stripe.checkout.Session, db: Session):
         status=PlanStatus.ACTIVE
     )
 
+    create_notification(
+        db= db,
+        user_id = user_id,
+        message= f"pyement done",
+        notification_type= "SUCESS PAYMENT",
+    )
+
     db.add(new_subscription)
     db.commit()
 
@@ -129,6 +152,13 @@ def handle_failed_payment(session: stripe.checkout.Session, db: Session):
         token_amount=0,
         status=PlanStatus.EXPIRED
     )
+
+    create_notification(
+            db= db,
+            user_id = user_id,
+            message= f"pyement Faild",
+            notification_type= "FAILD PAYMENT",
+        )
     db.add(failed_sub)
     db.commit()
 
@@ -512,3 +542,185 @@ async def friend_request_update(
     return {"message": "Friend request updated successfully"}
 
 
+
+@router.get("/all_subscription")
+async def get_all_sb( db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.USER))):
+   sub= db.query(SubscriptionPlan).all()
+
+   return sub;
+
+
+  # Allows Pydantic to read ORM objects directly (formerly `orm_mode = True` in Pydantic v1)
+
+
+
+# 2. Add response_model=List[UserResponse] to the decorator
+@router.get("/users", response_model=List[UserResponse])
+def get_all_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.USER))
+):
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users
+
+
+@router.post("/documents/upload")
+async def upload_document(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.USER))
+):
+    # Save file locally
+    file_id = str(uuid.uuid4())
+    file_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Store file record in DB
+    doc_record = DocumentChat(
+        user_id=current_user.id,
+        filename=file.filename,
+        file_path=file_path
+    )
+    db.add(doc_record)
+    db.commit()
+    db.refresh(doc_record)
+
+    # Trigger background parsing, chunking, and embedding creation
+    background_tasks.add_task(process_document_background, doc_record.id)
+
+    return {
+        "message": "File uploaded successfully. Processing in background.",
+        "document_id": doc_record.id
+    }
+
+
+@router.post("/documents/{document_id}/ask")
+async def ask_document_question(
+    document_id: int,
+    question: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.USER))
+):
+
+    # 1. Create embedding for user's question
+
+    query_embedding_res = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=question,
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=768,
+        ),
+    )
+
+    query_embedding = (
+        query_embedding_res.embeddings[0].values
+    )
+
+    # 2. Search relevant chunks
+
+    matched_chunks = (
+        db.query(DocumentChunk)
+        .filter(
+            DocumentChunk.document_id == document_id
+        )
+        .order_by(
+            DocumentChunk.embedding.cosine_distance(
+                query_embedding
+            )
+        )
+        .limit(3)
+        .all()
+    )
+
+    if matched_chunks:
+        print(matched_chunks[0].content) 
+
+    if not matched_chunks:
+        raise HTTPException(
+            status_code=404,
+            detail="No relevant document content found."
+        )
+
+    # 3. Build context
+
+    context_text = "\n\n".join(
+        c.content for c in matched_chunks
+    )
+
+    # 4. Ask Gemini
+
+    prompt = f"""
+            You are a helpful document assistant.
+
+            Answer the user's question ONLY using the information provided in the context below.
+
+            Keep your answer SHORT, BRIEF, and DIRECT.
+            Give only the information necessary to answer the question.
+            Do not provide unnecessary explanations, background information, or assumptions.
+            Do not use information from outside the context.
+
+            Context:
+            {context_text}
+
+            Question:
+            {question}
+
+            If the answer is not available in the context, respond exactly:
+            "Information is not available in the uploaded document."
+            """
+
+    response = client.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=prompt
+    )
+
+    return {
+        "question": question,
+        "retrieved_context": [
+            c.content for c in matched_chunks
+        ],
+        "answer": response.text
+    }
+
+
+
+
+# 
+@router.get("/get_all_friend", response_model=None)
+async def get_all_friend(
+    db: Session = Depends(get_db),
+    cur_user = Depends(require_roles(Role.USER))
+):
+    # Query requests where current user is either the sender or receiver
+    accepted_requests = (
+        db.query(FriendRequest)
+        .options(joinedload(FriendRequest.sender), joinedload(FriendRequest.receiver))
+        .filter(
+            FriendRequest.request_status == re_status.ACCEPT,
+            or_(
+                FriendRequest.sender_id == cur_user.id,
+                FriendRequest.receiver_id == cur_user.id
+            )
+        )
+        .all()
+    )
+
+    getalluser = []
+    for request in accepted_requests:
+        # Determine which party in the request is the friend
+        friend = request.receiver if request.sender_id == cur_user.id else request.sender
+        
+        getalluser.append({
+            "id": friend.id,
+            "name": friend.name,
+            "email": friend.email
+        })
+
+    return getalluser

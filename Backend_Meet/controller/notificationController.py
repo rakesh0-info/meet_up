@@ -8,9 +8,11 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from dataBase_Model.friend_request import FriendRequest
 from dataBase_Model.notifiactionModel import Notification
 from dataBase_Model.user_model import User
 from database import get_db
+from enums.Request_Status import re_status
 from enums.roleEnum import Role
 from notification_manager import NotificationManager
 from security.role_authenticated import require_roles, get_websocket_user
@@ -55,12 +57,13 @@ async def notification_websocket(
         notification_manager.disconnect(user_id)
 
 
+# notificationController_4.py
+
 @router.get("/unread")
 async def get_unread_notifications(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER, Role.ADMIN)),
 ):
-    """Fetch unread notifications via REST API."""
     unread = (
         db.query(Notification)
         .filter(
@@ -70,7 +73,31 @@ async def get_unread_notifications(
         .order_by(Notification.created_at.desc())
         .all()
     )
-    return unread
+    
+    response = []
+    for notif in unread:
+        sender_id = None
+        if notif.notification_type == "FRIEND_REQUEST":
+            freq = db.query(FriendRequest).filter(
+                FriendRequest.receiver_id == current_user.id,
+                FriendRequest.request_status == re_status.SENT
+            ).order_by(FriendRequest.send_at.desc()).first()
+            
+            if freq:
+                sender_id = freq.sender_id
+
+        response.append({
+            "id": notif.id,
+            "user_id": notif.user_id,
+            "message": notif.message,
+            "notification_type": notif.notification_type,
+            "room_id": notif.room_id,  # ADDED: Include room_id in response
+            "is_read": notif.is_read,
+            "created_at": notif.created_at,
+            "sender_id": sender_id
+        })
+
+    return response
 
 
 @router.patch("/{notification_id}/read")
