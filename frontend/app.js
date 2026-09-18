@@ -1,5 +1,5 @@
 const BASE_URL = 'http://127.0.0.1:8000';
-let accessToken = '';
+let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';
 let currentUserId = null;
@@ -11,8 +11,18 @@ let livekitRoom = null;
 
 let activeTranscripts = [];
 
-// Web Speech API auto-transcription engine
+// ===================================================================
+// SPEECH & TRANSCRIPTION FUNCTIONS
+// ===================================================================
 let speechRecognizer = null;
+let isExplicitlyStopped = false;
+let lastAppendedText = "";
+let lastAppendedTime = 0;
+let speechRestartTimer = null;
+let unreadNotifications = [];
+let notificationFetchSequence = 0;
+let plansRefreshTimer = null;
+let plansRefreshEventsBound = false;
 
 function startAutoSpeechToText() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -25,46 +35,42 @@ function startAutoSpeechToText() {
         try { speechRecognizer.stop(); } catch(e){}
     }
 
+    if (speechRestartTimer) {
+        clearTimeout(speechRestartTimer);
+        speechRestartTimer = null;
+    }
+
+    isExplicitlyStopped = false;
     speechRecognizer = new SpeechRecognition();
     speechRecognizer.continuous = true;
-    speechRecognizer.interimResults = false;
+    speechRecognizer.interimResults = true; 
     speechRecognizer.lang = 'en-US';
 
     speechRecognizer.onresult = (event) => {
-        const lastResultIndex = event.results.length - 1;
-        const transcriptText = event.results[lastResultIndex][0].transcript.trim();
+        const speaker = currentEmail || "Participant";
+        let interimTranscript = '';
+        let finalTranscript = '';
 
-        if (transcriptText) {
-            const speaker = currentEmail || "Participant";
-
-            // 1. Broadcast over WebSocket to active backend call room
-            if (callWs && callWs.readyState === WebSocket.OPEN) {
-                callWs.send(JSON.stringify({
-                    type: "LIVEKIT_TRANSCRIPT",
-                    text: transcriptText,
-                    participantName: speaker,
-                    timestamp: Date.now()
-                }));
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcriptSegment = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += transcriptSegment;
+            } else {
+                interimTranscript += transcriptSegment;
             }
+        }
 
-            // 2. Broadcast over LiveKit Data Channel
-            if (livekitRoom && livekitRoom.localParticipant) {
-                try {
-                    const payload = new TextEncoder().encode(JSON.stringify({
-                        type: "TRANSCRIPT",
-                        text: transcriptText,
-                        speaker: speaker,
-                        timestamp: Date.now()
-                    }));
-                    livekitRoom.localParticipant.publishData(payload, { reliable: true });
-                } catch (e) {
-                    console.warn("LiveKit publishData error:", e);
-                }
-            }
+        if (interimTranscript.trim()) {
+            showCaption(speaker, interimTranscript.trim());
+        }
 
-            // 3. Render directly onto local UI
-            appendTranscript(speaker, transcriptText);
+        if (finalTranscript.trim()) {
+            const transcriptText = finalTranscript.trim();
+            
             showCaption(speaker, transcriptText);
+            appendTranscriptSafe(speaker, transcriptText);
+
+            publishTranscript(transcriptText, speaker);
         }
     };
 
@@ -73,25 +79,123 @@ function startAutoSpeechToText() {
     };
 
     speechRecognizer.onend = () => {
-        if (livekitRoom) {
-            try { speechRecognizer.start(); } catch(e){}
+        if (!isExplicitlyStopped && livekitRoom) {
+            speechRestartTimer = setTimeout(() => {
+                try {
+                    if (speechRecognizer && !isExplicitlyStopped && livekitRoom) {
+                        speechRecognizer.start();
+                    }
+                } catch (e) {
+                    console.error("Could not auto-restart speech recognition:", e);
+                }
+                speechRestartTimer = null;
+            }, 1000);
         }
     };
 
     try {
         speechRecognizer.start();
-        console.log("Auto Speech-to-Text activated successfully.");
+        console.log("High-speed Auto Speech-to-Text activated successfully.");
     } catch (e) {
         console.error("Failed to start speech recognition:", e);
     }
 }
 
 function stopAutoSpeechToText() {
+    isExplicitlyStopped = true;
+    if (speechRestartTimer) {
+        clearTimeout(speechRestartTimer);
+        speechRestartTimer = null;
+    }
     if (speechRecognizer) {
         try { speechRecognizer.stop(); } catch(e){}
         speechRecognizer = null;
     }
 }
+
+function appendTranscriptSafe(speaker, text) {
+    const now = Date.now();
+    if (speaker === (currentEmail || "Participant") && text === lastAppendedText && (now - lastAppendedTime < 2000)) {
+        return;
+    }
+    lastAppendedText = text;
+    lastAppendedTime = now;
+    appendTranscript(speaker, text);
+}
+
+function publishTranscript(text, speaker) {
+    const transcript = {
+        type: "TRANSCRIPT",
+        text,
+        speaker,
+        participantName: speaker,
+        timestamp: Date.now()
+    };
+
+    if (callWs && callWs.readyState === WebSocket.OPEN) {
+        callWs.send(JSON.stringify({
+            ...transcript,
+            type: "LIVEKIT_TRANSCRIPT"
+        }));
+    }
+
+    if (livekitRoom && livekitRoom.localParticipant) {
+        try {
+            const payload = new TextEncoder().encode(JSON.stringify(transcript));
+            livekitRoom.localParticipant.publishData(payload, { reliable: true });
+        } catch (error) {
+            console.warn("LiveKit transcript publish warning:", error);
+        }
+    }
+}
+
+function showCaption(speaker, text) {
+    const overlay = document.getElementById('captionOverlay');
+    if (!overlay) return;
+
+    document.getElementById('captionSpeaker').innerText = speaker;
+    document.getElementById('captionText').innerText = text;
+    overlay.classList.remove('hidden');
+
+    clearTimeout(window.captionTimeout);
+    window.captionTimeout = setTimeout(() => overlay.classList.add('hidden'), 4000);
+}
+
+function appendTranscript(speaker, text) {
+    const box = document.getElementById('transcriptBox');
+    if (!box) return;
+
+    activeTranscripts.push(`${speaker}: ${text}`);
+
+    const emptyMsg = box.querySelector('.empty-msg');
+    if (emptyMsg) emptyMsg.remove();
+
+    const entry = document.createElement('div');
+    entry.className = 'transcript-entry';
+    entry.innerHTML = `<span class="speaker">${speaker}:</span> ${text}`;
+    box.appendChild(entry);
+    box.scrollTop = box.scrollHeight;
+}
+
+function sendSpeechInput() {
+    const speechInput = document.getElementById('speech-input') || document.getElementById('speechInput');
+    const text = speechInput ? speechInput.value.trim() : '';
+
+    if (!text) {
+        alert("Please enter speech text first.");
+        return;
+    }
+
+    const speaker = currentEmail || "Participant";
+
+    publishTranscript(text, speaker);
+
+    appendTranscriptSafe(speaker, text);
+    showCaption(speaker, text);
+
+    if (speechInput) speechInput.value = '';
+}
+// ===================================================================
 
 async function request(endpoint, method = 'GET', body = null) {
     const headers = { 'Content-Type': 'application/json' };
@@ -151,6 +255,7 @@ async function handleLogin(event) {
             showOTPScreen();
         } else if (res.access_token) {
             accessToken = res.access_token;
+            localStorage.setItem('access_token', accessToken);
             currentUserRole = res.role;
             loadDashboard();
         }
@@ -163,6 +268,85 @@ function showOTPScreen() {
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('otp-screen').classList.remove('hidden');
     document.getElementById('otp-target-email').innerText = currentEmail;
+}
+
+function showPasswordReset() {
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('password-reset-email-screen').classList.remove('hidden');
+    document.getElementById('password-reset-otp-screen').classList.add('hidden');
+    document.getElementById('password-reset-form-screen').classList.add('hidden');
+    const loginEmail = document.getElementById('login-email').value.trim();
+    if (loginEmail) {
+        document.getElementById('forgot-email').value = loginEmail;
+    }
+}
+
+function hidePasswordReset() {
+    document.getElementById('password-reset-email-screen').classList.add('hidden');
+    document.getElementById('password-reset-otp-screen').classList.add('hidden');
+    document.getElementById('password-reset-form-screen').classList.add('hidden');
+    document.getElementById('auth-screen').classList.remove('hidden');
+}
+
+async function handleForgotPassword(event) {
+    event.preventDefault();
+    const email = document.getElementById('forgot-email').value.trim();
+
+    try {
+        const response = await request(
+            `/api/v1/user/forgetpass?email=${encodeURIComponent(email)}`,
+            'POST'
+        );
+        currentEmail = email;
+        document.getElementById('reset-otp-email').innerText = email;
+        document.getElementById('password-reset-email-screen').classList.add('hidden');
+        document.getElementById('password-reset-otp-screen').classList.remove('hidden');
+    } catch (error) {
+        console.error('Forgot password request failed:', error);
+    }
+}
+
+async function handleResetOTP(event) {
+    event.preventDefault();
+    const otp_input = document.getElementById('reset-otp-input').value.trim();
+
+    try {
+        await request('/api/v1/user/verify_otp', 'POST', {
+            email: currentEmail,
+            otp_input
+        });
+        document.getElementById('password-reset-otp-screen').classList.add('hidden');
+        document.getElementById('password-reset-form-screen').classList.remove('hidden');
+    } catch (error) {
+        console.error('Reset OTP verification failed:', error);
+    }
+}
+
+async function handleResetPassword(event) {
+    event.preventDefault();
+    const email = currentEmail;
+    const key = document.getElementById('reset-key').value.trim();
+    const newPass = document.getElementById('reset-new-password').value;
+    const confirmPass = document.getElementById('reset-confirm-password').value;
+
+    if (newPass !== confirmPass) {
+        alert('New password and confirmation do not match.');
+        return;
+    }
+
+    try {
+        const response = await request('/api/v1/user/reset_pass', 'POST', {
+            email,
+            key,
+            new_pass: newPass,
+            confrim_pass: confirmPass
+        });
+        alert(typeof response === 'string' ? response : 'Password reset successfully.');
+        hidePasswordReset();
+        switchAuthTab('login');
+    } catch (error) {
+        console.error('Password reset failed:', error);
+    }
 }
 
 async function handleVerifyOTP(event) {
@@ -186,8 +370,14 @@ async function loadDashboard() {
     document.getElementById('app-header').classList.remove('hidden');
     document.getElementById('dashboard-screen').classList.remove('hidden');
 
+    const me = await request('/api/v1/user/me', 'GET');
+    currentUserId = me.id;
+    currentEmail = me.email;
+    currentUserRole = me.role;
+
     document.getElementById('greeting-text').innerText = `Welcome, ${currentEmail}`;
     document.getElementById('role-badge').innerText = currentUserRole.toUpperCase();
+    updateWalletDisplay(me.token_balance || 0);
 
     if (currentUserRole.toLowerCase() === 'admin') {
         await loadAdminDashboard();
@@ -195,27 +385,46 @@ async function loadDashboard() {
         await loadUserDashboard();
     }
 
-    fetchSubscriptions();
+    await fetchSubscriptions();
+    startPlansRefresh();
     fetchNotifications();
     initNotificationWebSocket();
+}
+
+function startPlansRefresh() {
+    if (plansRefreshTimer) {
+        clearInterval(plansRefreshTimer);
+    }
+
+    plansRefreshTimer = setInterval(() => {
+        fetchSubscriptions();
+    }, 30000);
+
+    if (!plansRefreshEventsBound) {
+        window.addEventListener('focus', fetchSubscriptions);
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'subscription-plan-created') {
+                fetchSubscriptions();
+            }
+        });
+        plansRefreshEventsBound = true;
+    }
 }
 
 async function loadAdminDashboard() {
     document.getElementById('admin-summary-section').classList.remove('hidden');
     try {
-        const adminData = await request('/api/v1/admin/get_all_user', 'GET');
+        const adminData = await request('/api/v1/admin/admin_dashboard', 'GET');
         
         const me = adminData.users.find(u => u.email === currentEmail);
         if (me) {
-            currentUserId = me.user_id;
+            currentUserId = me.id;
             updateWalletDisplay(me.current_token_balance);
         }
 
         document.getElementById('admin-usage-card').innerHTML = `
-            <p><strong>Analytics Date:</strong> ${adminData.today_summary.date}</p>
-            <p><strong>Tokens Consumed Today:</strong> ${adminData.today_summary.total_tokens_consumed_today}</p>
-            <p><strong>Total Call Duration Today:</strong> ${adminData.today_summary.total_duration_seconds_today} seconds</p>
-            <p><strong>Total System Users:</strong> ${adminData.total_users_count}</p>
+            <p><strong>Total Tokens Used Today:</strong> ${adminData.total_tokens_used_today}</p>
+            <p><strong>Total System Users:</strong> ${adminData.total_users}</p>
         `;
 
         const usersGrid = document.getElementById('users-grid');
@@ -223,11 +432,11 @@ async function loadAdminDashboard() {
 
         usersGrid.innerHTML = otherUsers.map(u => `
             <div class="item-card">
-                <h3>${u.email}</h3>
+                <h3>${u.name || u.email}</h3>
+                <p><strong>Email:</strong> ${u.email}</p>
                 <p><strong>Role:</strong> ${u.role}</p>
                 <p><strong>Wallet Balance:</strong> ${u.current_token_balance} Tokens</p>
-                <p><strong>Total Tokens Used:</strong> ${u.total_tokens_used}</p>
-                <p><strong>Total Calls:</strong> ${u.total_calls_count}</p>
+                <p><strong>Tokens Used:</strong> ${u.tokens_used}</p>
             </div>
         `).join('');
 
@@ -236,28 +445,59 @@ async function loadAdminDashboard() {
     }
 }
 
+async function handleAddPlan(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('plan-name').value.trim();
+    const description = document.getElementById('plan-description').value.trim();
+    const tokenBalance = Number(document.getElementById('plan-token-balance').value);
+    const amountToPay = Number(document.getElementById('plan-amount').value);
+
+    if (!name || !Number.isInteger(tokenBalance) || tokenBalance <= 0 || !Number.isInteger(amountToPay) || amountToPay <= 0) {
+        alert('Enter a plan name, a positive whole-token amount, and a positive price.');
+        return;
+    }
+
+    try {
+        const response = await request('/api/v1/admin/add_new_plan', 'POST', {
+            name,
+            description: description || null,
+            token_balance: tokenBalance,
+            amount_to_pay: amountToPay
+        });
+
+        alert(response.message || 'Plan created successfully.');
+        document.getElementById('plan-name').value = '';
+        document.getElementById('plan-description').value = '';
+        document.getElementById('plan-token-balance').value = '';
+        document.getElementById('plan-amount').value = '';
+        localStorage.setItem('subscription-plan-created', String(Date.now()));
+        await fetchSubscriptions();
+    } catch (error) {
+        console.error('Failed to add subscription plan:', error);
+    }
+}
+
 async function loadUserDashboard() {
     document.getElementById('admin-summary-section').classList.add('hidden');
     try {
-        const users = await request('/api/v1/user/users', 'GET');
-        
-        const me = users.find(u => u.email === currentEmail);
-        if (me) {
-            currentUserId = me.id;
-            updateWalletDisplay(me.token_balance || 0);
+        const dashboard = await request('/api/v1/user/user_dashboard', 'GET');
+        const friends = await request('/api/v1/user/get_all_friend', 'GET');
+
+        if (dashboard.user_info) {
+            currentUserId = dashboard.user_info.id;
+            currentEmail = dashboard.user_info.email;
+            updateWalletDisplay(dashboard.user_info.token_balance || 0);
         }
 
-        const otherUsers = users.filter(u => {
-            const isSelf = u.email === currentEmail || u.id === currentUserId;
-            const isAdmin = u.role && u.role.toString().toLowerCase().includes('admin');
-            return !isSelf && !isAdmin;
-        });
+        renderFriends(friends);
+        renderCompletedCalls(dashboard.completed_calls || []);
 
         const usersGrid = document.getElementById('users-grid');
-        usersGrid.innerHTML = otherUsers.map(u => `
+        const availableUsers = dashboard.available_users || [];
+        usersGrid.innerHTML = availableUsers.map(u => `
             <div class="item-card">
-                <h3>${u.name || u.email}</h3>
-                <p><strong>Email:</strong> ${u.email}</p>
+                <h3>${escapeHtml(u.name || u.email)}</h3>
                 <div style="display: flex; gap: 8px; margin-top: 5px;">
                     <button onclick="sendFriendRequest(${u.id})">Add Friend</button>
                     <button class="btn-success" onclick="initiateCall(${u.id})">Call User</button>
@@ -268,6 +508,51 @@ async function loadUserDashboard() {
     } catch (e) {
         console.error("Error loading user dashboard", e);
     }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function renderFriends(friends) {
+    const friendsGrid = document.getElementById('friends-grid');
+    if (!friendsGrid) return;
+
+    if (!friends.length) {
+        friendsGrid.innerHTML = '<p class="empty-msg">No accepted friends yet.</p>';
+        return;
+    }
+
+    friendsGrid.innerHTML = friends.map(friend => `
+        <div class="item-card">
+            <h3>${escapeHtml(friend.name || friend.email)}</h3>
+            <p>${escapeHtml(friend.email || '')}</p>
+            <button class="btn-success" onclick="initiateCall(${friend.id})">Call Friend</button>
+        </div>
+    `).join('');
+}
+
+function renderCompletedCalls(calls) {
+    const callsList = document.getElementById('completed-calls-list');
+    if (!callsList) return;
+
+    if (!calls.length) {
+        callsList.innerHTML = '<p class="empty-msg">No completed calls yet.</p>';
+        return;
+    }
+
+    callsList.innerHTML = calls.map(call => `
+        <div class="item-card">
+            <h3>Room ${escapeHtml(call.room_id)}</h3>
+            <p>Completed: ${call.created_at ? new Date(call.created_at).toLocaleString() : 'Unknown'}</p>
+            <button onclick="viewSummaryFromNotif('${escapeHtml(call.room_id)}', null)">View Summary</button>
+        </div>
+    `).join('');
 }
 
 async function sendFriendRequest(receiverId) {
@@ -298,6 +583,16 @@ async function fetchSubscriptions() {
 }
 
 async function subscribePlan(planId) {
+    if (!accessToken) {
+        alert('Please log in before buying a token plan.');
+        return;
+    }
+
+    if (currentUserRole.toLowerCase() !== 'user') {
+        alert('Only regular users can activate token plans.');
+        return;
+    }
+
     try {
         const res = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
         
@@ -317,12 +612,48 @@ function updateWalletDisplay(balance) {
     document.getElementById('wallet-token-count').innerText = balance;
 }
 
+async function refreshCurrentUserBalance() {
+    try {
+        const me = await request('/api/v1/user/me', 'GET');
+        if (me.token_balance !== undefined) {
+            updateWalletDisplay(me.token_balance);
+        }
+    } catch (error) {
+        console.error('Failed to refresh wallet balance:', error);
+    }
+}
+
 async function fetchNotifications() {
+    const fetchSequence = ++notificationFetchSequence;
     try {
         const unread = await request('/api/v1/notifications/unread', 'GET');
-        updateNotificationUI(unread);
+        if (fetchSequence !== notificationFetchSequence) return;
+
+        const serverNotifications = Array.isArray(unread) ? unread : [];
+        const serverIds = new Set(serverNotifications.map(notification => notification.id));
+        const pendingNotifications = unreadNotifications.filter(notification =>
+            notification._realtime && !serverIds.has(notification.id)
+        );
+
+        unreadNotifications = [...pendingNotifications, ...serverNotifications];
+        updateNotificationUI(unreadNotifications);
     } catch (e) {
         console.error(e);
+    }
+}
+
+function addRealtimeNotification(notification) {
+    if (!notification || typeof notification !== 'object') return;
+
+    if (String(notification.notification_type || '').toUpperCase().includes('PAYMENT')) {
+        refreshCurrentUserBalance();
+    }
+
+    const notificationId = notification.id;
+    const alreadyShown = notificationId && unreadNotifications.some(item => item.id === notificationId);
+    if (!alreadyShown) {
+        unreadNotifications = [{ ...notification, _realtime: true }, ...unreadNotifications];
+        updateNotificationUI(unreadNotifications);
     }
 }
 
@@ -342,7 +673,10 @@ function updateNotificationUI(notifications) {
     container.innerHTML = notifications.map(n => {
         let senderId = n.sender_id || n.metadata?.sender_id || n.data?.sender_id;
         let roomId = n.room_id || n.metadata?.room_id || n.data?.room_id || n.roomId;
-        const msg = (n.message || '').toString();
+        const rawMessage = (n.message || '').toString();
+        const senderMarker = rawMessage.match(/\[sender_id:(\d+)\]/i);
+        if (!senderId && senderMarker) senderId = Number(senderMarker[1]);
+        const msg = rawMessage.replace(/\s*\[sender_id:\d+\]/i, '');
 
         if (!roomId) {
             const uuidMatch = msg.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
@@ -352,33 +686,52 @@ function updateNotificationUI(notifications) {
         if (roomId) lastRoomId = roomId;
 
         const isIncomingCall = n.notification_type === 'INCOMING_CALL' || (msg.toLowerCase().includes('incoming') && msg.toLowerCase().includes('call'));
+        const isAcceptedCall = n.notification_type === 'CALL_ACCEPTED';
+        const isRejectedCall = n.notification_type === 'CALL_REJECTED';
         const isSummaryNotif = n.notification_type === 'CALL_SUMMARY_READY' || msg.toLowerCase().includes('summary');
         const isFriendReq = n.notification_type === 'FRIEND_REQUEST' || (msg.toLowerCase().includes('friend') && msg.toLowerCase().includes('request'));
 
-        return `
+         return `
             <div class="notif-item">
                 <p>${msg}</p>
-                ${(isFriendReq && senderId) ? `
+                ${(isFriendReq && Number.isInteger(Number(senderId))) ? `
                     <div class="notif-actions">
-                        <button class="btn-success" onclick="respondRequest(${senderId}, 'yes', ${n.id})">Accept</button>
-                        <button class="btn-danger" onclick="respondRequest(${senderId}, 'no', ${n.id})">Reject</button>
+                        <button class="btn-success" onclick="respondRequest(${senderId}, 'yes',${n.id})">Accept</button>
+                        <button class="btn-danger" onclick="respondRequest(${senderId}, 'no',${n.id})">Reject</button>
                     </div>
                 ` : ''}
                 ${(isIncomingCall) ? `
                     <div class="notif-actions">
-                        <button class="btn-success" onclick="respondToCall('${roomId || ''}', true, ${n.id})">Accept Call</button>
-                        <button class="btn-danger" onclick="respondToCall('${roomId || ''}', false, ${n.id})">Reject</button>
+                        <button class="btn-success" onclick="respondToCall('${roomId || ''}', true,${n.id})">Accept Call</button>
+                        <button class="btn-danger" onclick="respondToCall('${roomId || ''}', false,${n.id})">Reject</button>
                     </div>
                 ` : ''}
+                ${(isAcceptedCall && roomId) ? `
+                    <div class="notif-actions">
+                        <button class="btn-success" onclick="joinAcceptedCall('${roomId}', ${n.id})">Join Call</button>
+                    </div>
+                ` : ''}
+                ${(isRejectedCall) ? '<p>Call was rejected.</p>' : ''}
                 ${(isSummaryNotif) ? `
                     <div class="notif-actions">
-                        <button class="btn-success" onclick="viewSummaryFromNotif('${roomId || ''}', ${n.id})">View Summary</button>
+                        <button class="btn-success" onclick="viewSummaryFromNotif('${roomId || ''}',${n.id})">View Summary</button>
                     </div>
                 ` : ''}
             </div>
         `;
     }).join('');
 }
+
+async function joinAcceptedCall(roomId, notificationId) {
+    if (notificationId) {
+        await request(`/api/v1/notifications/${notificationId}/read`, 'PATCH');
+    }
+    fetchNotifications();
+    currentRoomId = roomId;
+    lastRoomId = roomId;
+    await openCallUI(roomId);
+}
+
 
 async function viewSummaryFromNotif(roomId, notificationId) {
     if (notificationId) {
@@ -406,19 +759,48 @@ function toggleNotifications() {
     document.getElementById('notif-dropdown').classList.toggle('hidden');
 }
 
+let notificationReconnectTimeout = null;
+
 function initNotificationWebSocket() {
     if (!currentUserId) return;
     if (notifWs) notifWs.close();
 
     const wsUrl = BASE_URL.replace(/^http/, 'ws');
-    notifWs = new WebSocket(`${wsUrl}/api/v1/notifications/ws/${currentUserId}?token=${accessToken}`);
+    notifWs = new WebSocket(
+        `${wsUrl}/api/v1/notifications/ws/${currentUserId}?token=${encodeURIComponent(accessToken)}`
+    );
 
-    notifWs.onmessage = () => {
+    notifWs.onopen = () => {
+        console.log("Notification WebSocket connected.");
+        if (notificationReconnectTimeout) {
+            clearTimeout(notificationReconnectTimeout);
+            notificationReconnectTimeout = null;
+        }
+        fetchNotifications();
+    };
+
+    notifWs.onmessage = (event) => {
+        try {
+            const payload = JSON.parse(event.data);
+            const notification = payload.notification || payload.data || payload;
+            if (notification && (notification.notification_type || notification.message || notification.id)) {
+                addRealtimeNotification(notification);
+            }
+        } catch (e) {
+            console.warn("Notification WebSocket payload warning:", e);
+        }
         fetchNotifications();
     };
 
     notifWs.onerror = (err) => {
         console.error("Notification WebSocket error:", err);
+    };
+
+    notifWs.onclose = () => {
+        console.log("Notification WebSocket closed. Reconnecting in 3 seconds...");
+        notificationReconnectTimeout = setTimeout(() => {
+            initNotificationWebSocket();
+        }, 3000);
     };
 }
 
@@ -428,7 +810,7 @@ async function initiateCall(receiverId) {
         alert(`Call requested successfully! Room ID: ${res.room_id}`);
         currentRoomId = res.room_id;
         lastRoomId = res.room_id;
-        await openCallUI(res.room_id);
+        // Wait for the receiver's CALL_ACCEPTED notification before joining.
     } catch (e) {
         console.error("Failed to initiate call:", e);
     }
@@ -496,7 +878,7 @@ async function joinVideoCallSession(roomId) {
 
         const LK = window.LivekitClient || window.LiveKit;
         if (!LK) {
-            alert("LiveKit Client library not found. Please include livekit-client.umd.min.js CDN in your HTML.");
+            alert("LiveKit Client library not found.");
             return;
         }
 
@@ -505,15 +887,24 @@ async function joinVideoCallSession(roomId) {
             dynacast: true,
         });
 
+        // Handle incoming tracks dynamically for grid display
         livekitRoom.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant) => {
             if (track.kind === 'video') {
-                const remoteVideo = document.getElementById("remoteVideo");
-                if (remoteVideo) track.attach(remoteVideo);
+                let remoteVideo = document.getElementById(`remoteVideo-${participant.identity}`);
+                if (!remoteVideo) {
+                    remoteVideo = document.createElement('video');
+                    remoteVideo.id = `remoteVideo-${participant.identity}`;
+                    remoteVideo.autoplay = true;
+                    remoteVideo.playsInline = true;
+                    document.querySelector('.video-grid').appendChild(remoteVideo);
+                }
+                track.attach(remoteVideo);
+                remoteVideo.play().catch(e => console.log("Auto-play prevented:", e));
             } else if (track.kind === 'audio') {
-                let remoteAudio = document.getElementById("remoteAudio");
+                let remoteAudio = document.getElementById(`remoteAudio-${participant.identity}`);
                 if (!remoteAudio) {
-                    remoteAudio = document.createElement("audio");
-                    remoteAudio.id = "remoteAudio";
+                    remoteAudio = document.createElement('audio');
+                    remoteAudio.id = `remoteAudio-${participant.identity}`;
                     remoteAudio.autoplay = true;
                     document.body.appendChild(remoteAudio);
                 }
@@ -539,7 +930,7 @@ async function joinVideoCallSession(roomId) {
                 const speaker = data.speaker || data.participantName || (participant ? participant.identity : "Participant");
 
                 if (text) {
-                    appendTranscript(speaker, text);
+                    appendTranscriptSafe(speaker, text);
                     showCaption(speaker, text);
                 }
             } catch (err) {
@@ -553,13 +944,37 @@ async function joinVideoCallSession(roomId) {
         currentRoomId = roomId;
         lastRoomId = roomId;
 
-        await livekitRoom.localParticipant.enableCameraAndMicrophone();
+        try {
+            await livekitRoom.localParticipant.enableCameraAndMicrophone();
+        } catch (mediaError) {
+            console.warn("Camera/microphone setup warning:", mediaError);
+        }
 
         const videoPubs = Array.from(livekitRoom.localParticipant.videoTrackPublications.values());
         if (videoPubs.length > 0 && videoPubs[0].track) {
             const localVideo = document.getElementById("localVideo");
             if (localVideo) videoPubs[0].track.attach(localVideo);
         }
+
+        // Attach any already existing remote participants/tracks
+        livekitRoom.remoteParticipants.forEach(participant => {
+            participant.trackPublications.forEach(publication => {
+                if (publication.track && publication.isSubscribed) {
+                    if (publication.kind === 'video') {
+                        let remoteVideo = document.getElementById(`remoteVideo-${participant.identity}`);
+                        if (!remoteVideo) {
+                            remoteVideo = document.createElement('video');
+                            remoteVideo.id = `remoteVideo-${participant.identity}`;
+                            remoteVideo.autoplay = true;
+                            remoteVideo.playsInline = true;
+                            document.querySelector('.video-grid').appendChild(remoteVideo);
+                        }
+                        publication.track.attach(remoteVideo);
+                        remoteVideo.play().catch(e => console.log("Auto-play prevented:", e));
+                    }
+                }
+            });
+        });
 
         startAutoSpeechToText();
 
@@ -588,10 +1003,11 @@ function leaveVideoCallSession() {
 function endCallSessionUI() {
     document.getElementById('video-call-section').classList.add('hidden');
     const localVid = document.getElementById("localVideo");
-    const remoteVid = document.getElementById("remoteVideo");
     
     if (localVid) localVid.srcObject = null;
-    if (remoteVid) remoteVid.srcObject = null;
+    
+    // Clean up dynamically created remote elements
+    document.querySelectorAll('[id^="remoteVideo-"], [id^="remoteAudio-"]').forEach(el => el.remove());
 
     if (currentRoomId || lastRoomId) {
         setTimeout(() => fetchSummary(), 1500);
@@ -608,7 +1024,9 @@ function connectCallWebSocket(roomId) {
     }
 
     const wsUrl = BASE_URL.replace(/^http/, 'ws');
-    callWs = new WebSocket(`${wsUrl}/api/v1/call/ws/${roomId}/${currentUserId}`);
+    callWs = new WebSocket(
+        `${wsUrl}/api/v1/call/ws/${encodeURIComponent(roomId)}/${currentUserId}?token=${encodeURIComponent(accessToken)}`
+    );
 
     callWs.onopen = () => {
         console.log(`Connected to call room WS: ${roomId}`);
@@ -619,12 +1037,23 @@ function connectCallWebSocket(roomId) {
             const data = JSON.parse(event.data);
             const msgType = (data.type || '').toUpperCase();
 
+            if (msgType === "BALANCE_UPDATE" || data.current_balance !== undefined) {
+                updateWalletDisplay(data.current_balance);
+            }
+
+            if (msgType === "TOKEN_DEDUCTION" || msgType === "BALANCE_UPDATE" || data.current_balance !== undefined || data.token_balance !== undefined) {
+                const newBalance = data.current_balance !== undefined ? data.current_balance : data.token_balance;
+                if (newBalance !== undefined) {
+                    updateWalletDisplay(newBalance);
+                }
+            }
+
             if (msgType === "LIVE_CAPTION" || msgType === "TRANSCRIPT" || msgType === "LIVEKIT_TRANSCRIPT") {
                 const speaker = data.speaker || data.participantName || data.user_email || "Speaker";
                 const text = data.text || data.translation || data.original || "";
 
                 if (text) {
-                    appendTranscript(speaker, text);
+                    appendTranscriptSafe(speaker, text);
                     showCaption(speaker, text);
                 }
             }
@@ -634,74 +1063,6 @@ function connectCallWebSocket(roomId) {
     };
 
     callWs.onerror = (err) => console.error("Call WebSocket error:", err);
-}
-
-function showCaption(speaker, text) {
-    const overlay = document.getElementById('captionOverlay');
-    if (!overlay) return;
-
-    document.getElementById('captionSpeaker').innerText = speaker;
-    document.getElementById('captionText').innerText = text;
-    overlay.classList.remove('hidden');
-
-    clearTimeout(window.captionTimeout);
-    window.captionTimeout = setTimeout(() => overlay.classList.add('hidden'), 4000);
-}
-
-function appendTranscript(speaker, text) {
-    const box = document.getElementById('transcriptBox');
-    if (!box) return;
-
-    activeTranscripts.push(`${speaker}: ${text}`);
-
-    const emptyMsg = box.querySelector('.empty-msg');
-    if (emptyMsg) emptyMsg.remove();
-
-    const entry = document.createElement('div');
-    entry.className = 'transcript-entry';
-    entry.innerHTML = `<span class="speaker">${speaker}:</span> ${text}`;
-    box.appendChild(entry);
-    box.scrollTop = box.scrollHeight;
-}
-
-function sendSpeechInput() {
-    const speechInput = document.getElementById('speech-input') || document.getElementById('speechInput');
-    const text = speechInput ? speechInput.value.trim() : '';
-
-    if (!text) {
-        alert("Please enter speech text first.");
-        return;
-    }
-
-    const speaker = currentEmail || "Participant";
-
-    if (callWs && callWs.readyState === WebSocket.OPEN) {
-        callWs.send(JSON.stringify({
-            type: "LIVEKIT_TRANSCRIPT",
-            text: text,
-            participantName: speaker,
-            timestamp: Date.now()
-        }));
-    }
-
-    if (livekitRoom && livekitRoom.localParticipant) {
-        try {
-            const payload = new TextEncoder().encode(JSON.stringify({
-                type: "TRANSCRIPT",
-                text: text,
-                speaker: speaker,
-                timestamp: Date.now()
-            }));
-            livekitRoom.localParticipant.publishData(payload, { reliable: true });
-        } catch (err) {
-            console.warn("LiveKit publishData error:", err);
-        }
-    }
-
-    appendTranscript(speaker, text);
-    showCaption(speaker, text);
-
-    if (speechInput) speechInput.value = '';
 }
 
 async function generateCallSummary() {
@@ -733,6 +1094,9 @@ async function fetchSummary() {
             summaryText = res;
         } else {
             summaryText = res.summary || res.summary_text || res.data || res.message || JSON.stringify(res);
+            if (res.current_balance !== undefined) {
+                updateWalletDisplay(res.current_balance);
+            }
         }
 
         renderSummaryCard(summaryText, targetRoomId);
@@ -762,9 +1126,61 @@ function endCallSession() {
     leaveVideoCallSession();
 }
 
+async function handleDocUploadPlaceholder() {
+    const fileInput = document.getElementById('doc-upload-input');
+    if (!fileInput || fileInput.files.length === 0) {
+        alert("Please select a file to upload first.");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const headers = {};
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+        const response = await fetch(`${BASE_URL}/api/v1/user/documents/upload`, {
+            method: 'POST',
+            headers: headers,
+            body: formData
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to upload document.');
+        }
+
+        alert(`File uploaded successfully! Document ID: ${data.document_id}`);
+
+        const question = prompt("Enter a question to ask about this uploaded document:");
+        if (question && question.trim()) {
+            await askDocumentQuestion(data.document_id, question.trim());
+        }
+    } catch (e) {
+        console.error("Document upload error:", e);
+        alert(e.message || "An error occurred during file upload.");
+    }
+}
+
+async function askDocumentQuestion(documentId, question) {
+    try {
+        const res = await request(`/api/v1/user/documents/${documentId}/ask?question=${encodeURIComponent(question)}`, 'POST');
+        alert(`AI Answer:\n${res.answer}\n\nRetrieved Context:\n${res.retrieved_context.join('\n---\n')}`);
+    } catch (e) {
+        console.error("Ask document question error:", e);
+    }
+}
+
 function handleLogout() {
     leaveVideoCallSession();
+    if (plansRefreshTimer) {
+        clearInterval(plansRefreshTimer);
+        plansRefreshTimer = null;
+    }
     accessToken = '';
+    localStorage.removeItem('access_token');
     currentEmail = '';
     currentUserId = null;
     if (notifWs) notifWs.close();

@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Depends, UploadFile, status,Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from requestmodel.subcription import SubscriptionPlanCreate
 
 from dotenv import load_dotenv
@@ -17,7 +18,7 @@ from security.role_authenticated import require_roles
 from dataBase_Model.subscription_db import SubscriptionPlan
 from dataBase_Model.video_call_subscription import Video_Call_Subscription
 from dataBase_Model.video_call import VideoCall
-# from enums.plan_status import status as staus_plan
+from enums.plan_status import status as PlanStatus
 
 
 
@@ -29,54 +30,65 @@ router=APIRouter(prefix="/api/v1/admin")
 
 
 
-@router.get("/get_all_user", status_code=status.HTTP_200_OK)
-async def get_all_users_usage(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(roleEnum.Role.ADMIN))
+@router.get("/admin_dashboard")
+async def admin_dashboard(
+    db: Session = Depends(get_db), 
+    curr: User = Depends(require_roles(roleEnum.Role.ADMIN))
 ):
-   
-    today_start = datetime.combine(date.today(), time.min)
+    try:
+        # 1. Fetch all users
+        users = db.query(User).all()
+        
+        user_data = []
+        for user in users:
+            # Safely fetch active or all subscriptions for the user
+            subs = db.query(Video_Call_Subscription).filter(
+                Video_Call_Subscription.user_id == user.id
+            ).all()
+            
+            # Sum up total allocated tokens from all video call subscriptions for this user
+            total_allocated = sum(getattr(sub, "token_amount", 0) for sub in subs) if subs else 0
+            
+            # Fetch current balance (fallback to subscription balance if user balance isn't present)
+            current_balance = user.token_balance
+                
+            tokens_used = max(0, total_allocated - current_balance)
+            
+            user_data.append({
+                "id": user.id,
+                "name": getattr(user, "name", "N/A"),
+                "email": user.email,
+                "role": getattr(user, "role", None),
+                "current_token_balance": current_balance,
+                "tokens_allocated": total_allocated,
+                "tokens_used": tokens_used
+            })
 
+        # 2. Daily token usage calculation
+        today_start = datetime.combine(datetime.utcnow().date(), time.min)
+        today_end = datetime.combine(datetime.utcnow().date(), time.max)
 
-    today_stats = db.query(
-        func.coalesce(func.sum(VideoCall.tokens_consumed), 0).label("total_tokens_today"),
-        func.coalesce(func.sum(VideoCall.duration_seconds), 0).label("total_duration_today")
-    ).filter(VideoCall.created_at >= today_start).first()
+        # Check if VideoCall has tokens_consumed or tokens_used column
+        today_tokens_used = (
+            db.query(func.coalesce(func.sum(VideoCall.tokens_consumed), 0))
+            .filter(VideoCall.start_time >= today_start, VideoCall.start_time <= today_end)
+            .scalar()
+            or 0
+        )
 
-   
-    users = db.query(User).all()
-    users_usage_list = []
+        return {
+            "users": user_data,
+            "total_users": len(users),
+            "total_tokens_used_today": today_tokens_used
+        }
 
-    for user in users:
-        # Sum calls where the user was either sender or receiver
-        user_stats = db.query(
-            func.coalesce(func.sum(VideoCall.tokens_consumed), 0).label("total_tokens"),
-            func.coalesce(func.sum(VideoCall.duration_seconds), 0).label("total_duration"),
-            func.count(VideoCall.id).label("total_calls")
-        ).filter(
-            or_(VideoCall.sender_id == user.id, VideoCall.receiver_id == user.id)
-        ).first()
+    except Exception as e:
+        print(f"[ADMIN DASHBOARD ERROR]: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Dashboard calculation error: {str(e)}"
+        )
 
-        users_usage_list.append({
-            "user_id": user.id,
-            "email": user.email,
-            "role": user.role,
-            "current_token_balance": user.token_balance,
-            "total_tokens_used": float(user_stats.total_tokens),
-            "total_duration_seconds": int(user_stats.total_duration),
-            "total_calls_count": int(user_stats.total_calls)
-        })
-
-    # 4. Consolidated Response
-    return {
-        "today_summary": {
-            "date": date.today().isoformat(),
-            "total_tokens_consumed_today": float(today_stats.total_tokens_today),
-            "total_duration_seconds_today": int(today_stats.total_duration_today)
-        },
-        "total_users_count": len(users_usage_list),
-        "users": users_usage_list
-    }
 
 
 @router.post("/add_new_plan", status_code=status.HTTP_201_CREATED)
@@ -86,6 +98,15 @@ async def add_new_plan(
     db: Session = Depends(get_db)
 ):
     try:
+        existing_plan = db.query(SubscriptionPlan).filter(
+            func.lower(SubscriptionPlan.name) == payload.name.strip().lower()
+        ).first()
+        if existing_plan:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A subscription plan with this name already exists. Use a different name.",
+            )
+
         # 1. Create Stripe Product
         product = stripe.Product.create(
             name=payload.name,
@@ -127,11 +148,22 @@ async def add_new_plan(
             "stripe_price_id": new_plan.stripe_price_id
         }
 
+    except HTTPException:
+        db.rollback()
+        raise
+
     except stripe.StripeError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Stripe Error: {str(e)}"
+        )
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A subscription plan with this name already exists. Use a different name.",
         )
 
     except Exception as e:

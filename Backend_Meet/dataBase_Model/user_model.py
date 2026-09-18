@@ -27,6 +27,9 @@ class User(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # is_forget_pass=Column(Boolean,default= False)
+    secret_key=Column(String(200),nullable=True)
+
     # Relationships
     subscriptions = relationship("Video_Call_Subscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

@@ -42,7 +42,7 @@ async def finalize_call_and_summarize(room_id: str, transcript_lines: list, db: 
     else:
         call_record.summary = "No speech detected during the call."
 
-    if call_record.status == CallStatus.NO_CALL:
+    if call_record.status == CallStatus.ACTIVE:
         call_record.status = CallStatus.COMPLETED
 
     db.commit()

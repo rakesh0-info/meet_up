@@ -14,17 +14,13 @@ from dataBase_Model.user_model import User
 from database import get_db
 from enums.Request_Status import re_status
 from enums.roleEnum import Role
-from notification_manager import NotificationManager
+from notification_manager import notification_manager
 from security.role_authenticated import require_roles, get_websocket_user
 
 router = APIRouter(
     prefix="/api/v1/notifications",
     tags=["Notifications"],
 )
-
-# Shared manager instance or import from your main app module
-notification_manager = NotificationManager()
-
 
 @router.websocket("/ws/{user_id}")
 async def notification_websocket(
@@ -35,7 +31,9 @@ async def notification_websocket(
 ):
     # Validate token for WebSocket connection
     current_user = await get_websocket_user(websocket, token, db)
-    if not current_user or current_user.id != user_id:
+    if not current_user:
+        return
+    if current_user.id != user_id:
         await websocket.close(code=4001, reason="Unauthorized connection")
         return
 
@@ -51,10 +49,10 @@ async def notification_websocket(
             await websocket.receive_text()
 
     except WebSocketDisconnect:
-        notification_manager.disconnect(user_id)
+        notification_manager.disconnect(user_id, websocket)
 
     except Exception:
-        notification_manager.disconnect(user_id)
+        notification_manager.disconnect(user_id, websocket)
 
 
 # notificationController_4.py
@@ -80,7 +78,7 @@ async def get_unread_notifications(
         if notif.notification_type == "FRIEND_REQUEST":
             freq = db.query(FriendRequest).filter(
                 FriendRequest.receiver_id == current_user.id,
-                FriendRequest.request_status == re_status.SENT
+                FriendRequest.request_status == re_status.SENT,
             ).order_by(FriendRequest.send_at.desc()).first()
             
             if freq:

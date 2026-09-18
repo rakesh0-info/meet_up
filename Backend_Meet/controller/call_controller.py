@@ -1,8 +1,9 @@
 import os
 import time
+from typing import Optional
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status as http_status
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status as http_status
 from fastapi.responses import PlainTextResponse
 from jose import jwt
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from dotenv import load_dotenv
 from database import get_db
 from dataBase_Model.video_call import VideoCall
 from dataBase_Model.user_model import User
-from security.role_authenticated import require_roles
+from security.role_authenticated import get_websocket_user, require_roles
 from enums.roleEnum import Role
 from enums.call_status import CallStatus
 
@@ -20,13 +21,16 @@ from service.friend_service import are_users_friends
 from service.notification_service import create_notification
 from service.call_service import finalize_call_and_summarize
 from schemas.call_schema import CallRequestPayload, CallResponsePayload
+from dataBase_Model.video_call_subscription import Video_Call_Subscription
+from enums.plan_status import status
 
-router = APIRouter(prefix="/api/v1/call", tags=["Video Call & WebRTC"])
+router = APIRouter(prefix="/api/v1/call", tags=["Call Management"])
 
 load_dotenv()
 
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
+# Fixed: Pulls correctly from your .env file instead of a placeholder
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "wss://my-app-wsr7to1b.livekit.cloud")
 
 
@@ -62,21 +66,33 @@ def generate_livekit_token(room_name: str, identity: str, name: str = None) -> s
 @router.get("/get-livekit-token")
 @router.get("/get-videosdk-token")
 def get_livekit_token(
-    room_id: str = None, 
-    current_user: User = Depends(require_roles(Role.USER))
+    room_id: Optional[str] = None, 
+    current_user = Depends(require_roles(Role.USER))
 ):
-    room_name = room_id if room_id else f"room_{uuid.uuid4().hex[:12]}"
-    token = generate_livekit_token(
-        room_name=room_name,
-        identity=current_user.email or str(current_user.id),
-        name=current_user.name or current_user.email
-    )
-    return {
-        "token": token,
-        "livekit_url": LIVEKIT_URL,
-        "livekitUrl": LIVEKIT_URL,
-        "room_id": room_name
-    }
+    """
+    Generates a LiveKit access token and returns the required connection parameters.
+    """
+    try:
+        room_name = room_id if room_id else f"room_{uuid.uuid4().hex[:12]}"
+        
+        token = generate_livekit_token(
+            room_name=room_name,
+            identity=str(current_user.id),
+            name=current_user.name or current_user.email
+        )
+        
+        return {
+            "token": token,
+            "url": LIVEKIT_URL,           # Standard key expected by clients
+            "livekit_url": LIVEKIT_URL,   # Explicit snake_case variant
+            "livekitUrl": LIVEKIT_URL,    # Explicit camelCase variant
+            "room_id": room_name
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to generate LiveKit token: {str(e)}"
+        )
 
 
 @router.post("/request_call")
@@ -86,6 +102,14 @@ async def send_call_request(
     current_user: User = Depends(require_roles(Role.USER))
 ):
     receiver_id = payload.receiver_id
+
+    user = db.query(Video_Call_Subscription).filter(
+        Video_Call_Subscription.status == status.ACTIVE, 
+        Video_Call_Subscription.user_id == current_user.id
+    ).first()
+
+    if not user:
+        raise HTTPException(400, detail="you do not have any token to call")
 
     if current_user.id == receiver_id:
         raise HTTPException(
@@ -136,24 +160,25 @@ async def respond_to_call(
 ):
     call_record = db.query(VideoCall).filter(VideoCall.room_id == payload.room_id).first()
 
-    if not call_record or call_record.receiver_id != current_user.id:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail="Call request not found or unauthorized."
-        )
+    if not call_record:
+        raise HTTPException(status_code=404, detail="Call request not found.")
+
+    if call_record.receiver_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Unauthorized to respond to this call.")
+
+    if call_record.status == CallStatus.ACTIVE:
+        return {
+            "message": "Call already active.",
+            "room_id": payload.room_id,
+            "websocket_endpoint": f"/api/v1/call/ws/{payload.room_id}/{current_user.id}"
+        }
 
     if call_record.status != CallStatus.NO_CALL:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="This call request has already been processed or ended."
-        )
+        raise HTTPException(status_code=409, detail="This call can no longer be answered.")
 
     if payload.accepted:
         if current_user.token_balance < 10:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="Insufficient tokens to join call."
-            )
+            raise HTTPException(status_code=400, detail="Insufficient tokens to join call.")
 
         call_record.status = CallStatus.ACTIVE
         db.commit()
@@ -187,8 +212,35 @@ async def respond_to_call(
 
 
 @router.websocket("/ws/{room_id}/{user_id}")
-async def call_websocket(websocket: WebSocket, room_id: str, user_id: int):
-    await call_manager.connect(room_id, websocket, user_id)
+async def call_websocket(
+    websocket: WebSocket,
+    room_id: str,
+    user_id: int,
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    authenticated_user = await get_websocket_user(websocket, token, db)
+    if not authenticated_user:
+        return
+    if authenticated_user.id != user_id:
+        await websocket.close(code=4001, reason="Unauthorized connection")
+        return
+
+    call_record = db.query(VideoCall).filter(VideoCall.room_id == room_id).first()
+    if not call_record or authenticated_user.id not in {
+        call_record.sender_id,
+        call_record.receiver_id,
+    }:
+        await websocket.close(code=4003, reason="Not a participant in this call")
+        return
+
+    if call_record.status != CallStatus.ACTIVE:
+        await websocket.close(code=4004, reason="Call is not active")
+        return
+
+    connected = await call_manager.connect(room_id, websocket, authenticated_user.id, db=db)
+    if not connected:
+        return
 
     try:
         while True:
@@ -201,14 +253,14 @@ async def call_websocket(websocket: WebSocket, room_id: str, user_id: int):
                     data.get("participantName")
                     or data.get("participant_name")
                     or data.get("speaker")
-                    or f"User {user_id}"
+                    or f"User {authenticated_user.id}"
                 )
                 timestamp = data.get("timestamp")
 
                 if text:
                     await call_manager.process_livekit_transcript(
                         room_id=room_id,
-                        sender_id=user_id,
+                        sender_id=authenticated_user.id,
                         participant_name=participant_name,
                         text=text,
                         timestamp=timestamp,
@@ -224,7 +276,7 @@ async def call_websocket(websocket: WebSocket, room_id: str, user_id: int):
         call_manager.disconnect(room_id, websocket)
 
     except Exception as e:
-        print(f"[CALL WS ERROR] room={room_id}, user={user_id}, error={e}")
+        print(f"[CALL WS ERROR] room={room_id}, user={authenticated_user.id}, error={e}")
         try:
             call_manager.disconnect(room_id, websocket)
         except Exception:
@@ -252,7 +304,6 @@ async def handle_call_summary(
             detail="Unauthorized to access this call summary."
         )
 
-    # Process payload transcript if sent during POST
     transcript_text = payload.get("transcript") if payload and isinstance(payload, dict) else None
 
     if transcript_text:

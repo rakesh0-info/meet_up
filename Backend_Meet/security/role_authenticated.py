@@ -1,4 +1,3 @@
-import os
 from typing import Any
 
 from dotenv import load_dotenv
@@ -7,21 +6,15 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from database import get_db
 from dataBase_Model.user_model import User
+from database import get_db
+from jwts.jwt_config import ALGORITHM, SECRET_KEY
 
 load_dotenv()
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/user/login"
 )
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("SECRET_KEY environment variable is not set.")
-
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -128,8 +121,8 @@ async def get_websocket_user(
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        email: str | None = payload.get("sub")
+        if email is None or payload.get("type") != "access":
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return None
     except JWTError:
@@ -137,7 +130,7 @@ async def get_websocket_user(
         return None
 
     user = db.query(User).filter(User.email == email).first()
-    if not user:
+    if not user or not user.is_verified:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 

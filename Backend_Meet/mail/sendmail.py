@@ -30,3 +30,22 @@ def send_mail(receiver_mail: str, otp: str):
     except Exception as e:
         print("Error sending mail: ", e)
 
+
+def send_key(receiver_mail: str, k: str):
+    msg = MIMEMultipart()
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = receiver_mail
+    msg["Subject"] = "Your Verification OTP"
+    
+    body_content = f"This is your key : {k}. use it when u reset password ."
+    msg.attach(MIMEText(body_content, "plain"))
+
+    try:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        print("Error sending mail: ", e)
+
+
+

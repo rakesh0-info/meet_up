@@ -1,9 +1,12 @@
 from celery import Celery
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 celery_app = Celery(
     "meutub_tasks",
-    broker="redis://localhost:6379/2",
-    backend="redis://localhost:6379/2",
+    broker=os.getenv("broker"),
+    backend=os.getenv("backend"),
     include=["task"]
 )
 

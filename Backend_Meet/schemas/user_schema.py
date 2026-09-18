@@ -36,3 +36,11 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class UserDirectoryResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+

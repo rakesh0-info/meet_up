@@ -4,9 +4,7 @@ import json
 import redis.asyncio as redis
 
 from notification_manager import NotificationManager
-
-
-REDIS_URL = "redis://localhost:6379/4"
+from rediss.redis_cofig import REDIS_URL
 
 CHANNEL = "notifications"
 
@@ -22,11 +20,9 @@ async def notification_listener(
 
     pubsub = redis_client.pubsub()
 
-    await pubsub.subscribe(CHANNEL)
-
-    print("Notification listener started")
-
     try:
+        await pubsub.subscribe(CHANNEL)
+        print("Notification listener started")
 
         async for message in pubsub.listen():
 
@@ -45,13 +41,15 @@ async def notification_listener(
             )
 
     except asyncio.CancelledError:
-
         print("Notification listener stopped")
 
+    except Exception as exc:
+        print(f"Notification listener unavailable: {exc}")
+
     finally:
-
-        await pubsub.unsubscribe(CHANNEL)
-
-        await pubsub.close()
-
-        await redis_client.close()
+        try:
+            await pubsub.unsubscribe(CHANNEL)
+            await pubsub.close()
+            await redis_client.aclose()
+        except Exception as exc:
+            print(f"Notification listener cleanup failed: {exc}")

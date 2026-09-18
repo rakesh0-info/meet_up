@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
 from dataBase_Model.notifiactionModel import Notification
@@ -7,7 +7,7 @@ from dataBase_Model.notifiactionModel import Notification
 class NotificationManager:
 
     def __init__(self):
-        self.connections: Dict[int, WebSocket] = {}
+        self.connections: Dict[int, List[WebSocket]] = {}
 
     async def connect(
         self,
@@ -16,7 +16,7 @@ class NotificationManager:
         db: Session = None,
     ):
         await websocket.accept()
-        self.connections[user_id] = websocket
+        self.connections.setdefault(user_id, []).append(websocket)
         print(f"Notification WebSocket connected: user={user_id}")
 
         # If DB session is provided, send all pending unread notifications
@@ -37,13 +37,23 @@ class NotificationManager:
                         "id": notif.id,
                         "message": notif.message,
                         "notification_type": notif.notification_type,
+                        "room_id": notif.room_id,
                         "is_read": notif.is_read,
                         "created_at": notif.created_at.isoformat(),
                     }
                 )
 
-    def disconnect(self, user_id: int):
-        self.connections.pop(user_id, None)
+    def disconnect(self, user_id: int, websocket: Optional[WebSocket] = None):
+        if websocket is None:
+            self.connections.pop(user_id, None)
+        elif user_id in self.connections:
+            self.connections[user_id] = [
+                connection
+                for connection in self.connections[user_id]
+                if connection is not websocket
+            ]
+            if not self.connections[user_id]:
+                self.connections.pop(user_id, None)
         print(f"Notification WebSocket disconnected: user={user_id}")
 
     async def send_to_user(
@@ -51,12 +61,15 @@ class NotificationManager:
         user_id: int,
         notification: dict,
     ):
-        websocket = self.connections.get(user_id)
-
-        if not websocket:
+        websockets = list(self.connections.get(user_id, []))
+        if not websockets:
             return
 
-        try:
-            await websocket.send_json(notification)
-        except Exception:
-            self.disconnect(user_id)
+        for websocket in websockets:
+            try:
+                await websocket.send_json(notification)
+            except Exception:
+                self.disconnect(user_id, websocket)
+
+
+notification_manager = NotificationManager()

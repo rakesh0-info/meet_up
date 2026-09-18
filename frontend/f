@@ -1,0 +1,24 @@
+  return `
+            <div class="notif-item">
+                <p>${msg}</p>
+                ${(isFriendReq && senderId) ? `
+                    <div class="notif-actions">
+                        <button class="btn-success" onclick="respondRequest(${senderId}, 'yes',${n.id})">Accept</button>
+                        <button class="btn-danger" onclick="respondRequest(${senderId}, 'no',${n.id})">Reject</button>
+                    </div>
+                ` : ''}
+                ${(isIncomingCall) ? `
+                    <div class="notif-actions">
+                        <button class="btn-success" onclick="respondToCall('${roomId || ''}', true,${n.id})">Accept Call</button>
+                        <button class="btn-danger" onclick="respondToCall('${roomId || ''}', false,${n.id})">Reject</button>
+                    </div>
+                ` : ''}
+                ${(isSummaryNotif) ? `
+                    <div class="notif-actions">
+                        <button class="btn-success" onclick="viewSummaryFromNotif('${roomId || ''}',${n.id})">View Summary</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}

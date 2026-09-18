@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 import enum
 import os
+import time
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -20,26 +21,28 @@ from fastapi import (
     status as http_status,
 )
 from jose import JWTError, jwt
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, not_, or_
 from sqlalchemy.orm import Session, joinedload
 import stripe
 
 from dataBase_Model.subscription_db import SubscriptionPlan
 from dataBase_Model.user_model import User
+from dataBase_Model.video_call import VideoCall
 from dataBase_Model.video_call_subscription import Video_Call_Subscription
+from enums.call_status import CallStatus
 from enums.plan_status import status as PlanStatus
 from enums.roleEnum import Role
 
 from database import get_db
-from jwt.jwt_config import create_access_token, create_refresh_token
-from jwt.jwt_response_schemas import Token
+from jwts.jwt_config import ALGORITHM, SECRET_KEY, create_access_token, create_refresh_token
+from jwts.jwt_response_schemas import Token
 from mail.sendmail import send_mail
 from otp_generate.otp import generate_otp, get_otp_expiry
 from requestmodel.friend_request_request import friend_request_Model
 from requestmodel.loginRequest_model import LoginRequest
 from requestmodel.optRequest import otp_req
 from security.role_authenticated import get_authenticated_active_user, get_websocket_user, require_roles
-from schemas.user_schema import UserRegister, UserResponse
+from schemas.user_schema import UserDirectoryResponse, UserRegister, UserResponse
 from util_validate.password_security import hash_password, verify_password
 from service.notification_service import create_notification
 
@@ -56,6 +59,10 @@ from google.genai import types
 from fastapi import UploadFile, File, BackgroundTasks
 from dataBase_Model.document_rag import DocumentChat, DocumentChunk
 from service.rag_service import process_document_background
+from  otp_generate.randomKey import get_random_letters
+from mail.sendmail import send_key
+from requestmodel.resetRequest import reset_pass
+from util_validate.pasword_name_validate import passwordCheack
 
 
 client = genai.Client(
@@ -66,7 +73,7 @@ client = genai.Client(
 
 
 
-UPLOAD_DIR = "uploaded_docs"
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploaded_docs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -77,13 +84,14 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 if not STRIPE_SECRET_KEY:
     raise RuntimeError("STRIPE_SECRET_KEY is not set in environment variables.")
+if not STRIPE_WEBHOOK_SECRET:
+    raise RuntimeError("STRIPE_WEBHOOK_SECRET is not set in environment variables.")
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 15))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 
 
 router = APIRouter(prefix="/api/v1/user")
@@ -146,6 +154,11 @@ def handle_failed_payment(session: stripe.checkout.Session, db: Session):
     if not user_id:
         return
 
+    if db.query(Video_Call_Subscription).filter(
+        Video_Call_Subscription.stripe_payment_id == session_id
+    ).first():
+        return
+
     failed_sub = Video_Call_Subscription(
         user_id=int(user_id),
         stripe_payment_id=session_id,
@@ -201,7 +214,7 @@ async def login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/v1/user/refresh",
@@ -275,9 +288,10 @@ async def verify_otp(payload: otp_req, db: Session = Depends(get_db)):
             status_code=http_status.HTTP_400_BAD_REQUEST, detail="Invalid OTP"
         )
 
-    if user.otp_expiry and user.otp_expiry <= datetime.now():
+    if user.otp_expiry and user.otp_expiry <= datetime.utcnow():
         user.otp = None
         user.otp_expiry = None
+        
         db.commit()
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST, detail="OTP timed out"
@@ -396,13 +410,19 @@ async def pay(
 
 
 @router.get("/payment/success")
-async def payment_success(session_id: str, db: Session = Depends(get_db)):
+async def payment_success(
+    session_id: str,
+    db: Session = Depends(get_db),
+):
     session = stripe.checkout.Session.retrieve(session_id)
+
     if session.payment_status == "paid":
+        # Stripe cannot call a localhost webhook. Fulfill the paid session here
+        # as an idempotent fallback; the webhook remains the normal production path.
         fulfill_subscription(session, db)
         return {
             "status": "success",
-            "message": "Payment completed and tokens added to your wallet successfully!",
+            "message": "Payment completed. Your wallet and notification were updated.",
         }
 
     raise HTTPException(status_code=400, detail="Payment incomplete.")
@@ -480,8 +500,9 @@ async def send_friend_request(
     create_notification(
         db=db,
         user_id=receiver_id,
-        message=f"New friend request from: {current_user.name}",
-        notification_type="FRIEND_REQUEST"
+        message=f"New friend request from: {current_user.name} [sender_id:{current_user.id}]",
+        notification_type="FRIEND_REQUEST",
+        sender_id=current_user.id,
     )
 
     return {"message": f"Friend request sent to: {exist_user.name}"}
@@ -545,10 +566,17 @@ async def friend_request_update(
 
 @router.get("/all_subscription")
 async def get_all_sb( db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.USER))):
+    ):
    sub= db.query(SubscriptionPlan).all()
 
    return sub;
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: User = Depends(require_roles(Role.USER, Role.ADMIN)),
+):
+    return current_user
 
 
   # Allows Pydantic to read ORM objects directly (formerly `orm_mode = True` in Pydantic v1)
@@ -556,14 +584,20 @@ async def get_all_sb( db: Session = Depends(get_db),
 
 
 # 2. Add response_model=List[UserResponse] to the decorator
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users", response_model=List[UserDirectoryResponse])
 def get_all_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER))
 ):
-    users = db.query(User).offset(skip).limit(limit).all()
+    users = (
+        db.query(User)
+        .filter(User.role == Role.USER, User.id != current_user.id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return users
 
 
@@ -576,7 +610,13 @@ async def upload_document(
 ):
     # Save file locally
     file_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")
+    original_filename = file.filename or "upload"
+    extension = os.path.splitext(original_filename)[1].lower()
+    allowed_extensions = {".pdf", ".txt", ".md", ".java", ".py", ".js", ".ts"}
+    if extension not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="Unsupported document type.")
+
+    file_path = os.path.join(UPLOAD_DIR, f"{file_id}{extension}")
     
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -584,7 +624,7 @@ async def upload_document(
     # Store file record in DB
     doc_record = DocumentChat(
         user_id=current_user.id,
-        filename=file.filename,
+        filename=original_filename,
         file_path=file_path
     )
     db.add(doc_record)
@@ -607,6 +647,16 @@ async def ask_document_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER))
 ):
+    document = (
+        db.query(DocumentChat)
+        .filter(
+            DocumentChat.id == document_id,
+            DocumentChat.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found.")
 
     # 1. Create embedding for user's question
 
@@ -628,7 +678,7 @@ async def ask_document_question(
     matched_chunks = (
         db.query(DocumentChunk)
         .filter(
-            DocumentChunk.document_id == document_id
+            DocumentChunk.document_id == document.id
         )
         .order_by(
             DocumentChunk.embedding.cosine_distance(
@@ -724,3 +774,138 @@ async def get_all_friend(
         })
 
     return getalluser
+
+
+@router.get("/user_dashboard")
+async def public_user_dashboard(
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(Role.USER))  # Wrapped in Depends()
+):
+    active_subscription = (
+        db.query(Video_Call_Subscription)
+        .filter(
+            Video_Call_Subscription.user_id == curr.id,
+            Video_Call_Subscription.status == PlanStatus.ACTIVE,
+        )
+        .order_by(Video_Call_Subscription.created_at.desc())
+        .first()
+    )
+
+    completed_calls = (
+        db.query(VideoCall)
+        .filter(
+            or_(VideoCall.sender_id == curr.id, VideoCall.receiver_id == curr.id),
+            VideoCall.status == CallStatus.COMPLETED
+        )
+        .all()
+    )
+
+    # 3. Get All Accepted Friends
+    friend_requests = (
+        db.query(FriendRequest)
+        .options(joinedload(FriendRequest.sender), joinedload(FriendRequest.receiver))
+        .filter(
+            FriendRequest.request_status == re_status.ACCEPT,
+            or_(FriendRequest.sender_id == curr.id, FriendRequest.receiver_id == curr.id)
+        )
+        .all()
+    )
+
+    friends_list = []
+    friend_ids = {curr.id}  # Collect IDs to exclude from available user directory
+
+    for req in friend_requests:
+        friend = req.receiver if req.sender_id == curr.id else req.sender
+        friend_ids.add(friend.id)
+        friends_list.append({
+            "id": friend.id,
+            "name": friend.name,
+            "email": friend.email
+        })
+
+    # 4. Get All Non-Friend Users (Available to send friend requests)
+    available_users = (
+        db.query(User)
+        .filter(not_(User.id.in_(friend_ids)))
+        .all()
+    )
+
+    # 5. Return Aggregated Dashboard Data
+    return {
+        "user_info": {
+            "id": curr.id,
+            "name": curr.name,
+            "email": curr.email,
+            "token_balance": curr.token_balance
+        },
+        "subscription": {
+            "status": active_subscription.status if active_subscription else None,
+            "token_amount": active_subscription.token_amount if active_subscription else 0,
+        },
+        "friends": friends_list,
+        "available_users": [
+            {"id": u.id, "name": u.name, "email": u.email} 
+            for u in available_users
+        ],
+        "completed_calls": [
+            {
+                "call_id": call.id,
+                "room_id": call.room_id,
+                "created_at": call.start_time
+            } 
+            for call in completed_calls
+        ]
+    }
+
+
+
+
+@router.post("/forgetpass")
+async def forgetpass(email: str, backg: BackgroundTasks, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(400, detail="User not exist")
+
+    otp = generate_otp()
+    expire = datetime.now() + timedelta(seconds=300)
+    user.otp = otp
+    user.otp_expiry = expire
+
+    # Fix: Ensure key is extracted as a string if get_random_letters returns a dict
+    key_res = get_random_letters()
+    key = key_res.get("random_letters") if isinstance(key_res, dict) else key_res
+
+    user.secret_key = key
+    db.commit()
+    db.refresh(user)
+    
+    backg.add_task(send_mail, email, otp=otp)
+    backg.add_task(send_key, email, key)
+
+    return "otp & key send to your mail for reset password"
+
+
+
+@router.post("/reset_pass")
+async def reset_pass(payload: reset_pass, db: Session = Depends(get_db)):
+    user = db.query(User).filter(payload.email == User.email).first()
+
+    if not user:
+        raise HTTPException(400, detail="not found")
+
+    if user.secret_key != payload.key:
+        raise HTTPException(400, detail="bad request")
+
+    if passwordCheack(payload.new_pass) == False:
+        raise HTTPException(400, detail="password must 6 len long contain atleast one sp char")
+
+    if payload.new_pass != payload.confrim_pass:
+        raise HTTPException(400, detail="confirm pass not match")
+
+    hashpass = hash_password(payload.new_pass)
+    user.secret_key = None
+    user.password = hashpass  # Fixed: assigning the hashed string variable
+    db.commit()
+    db.refresh(user)
+
+    return "password successfully change"

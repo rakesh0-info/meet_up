@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware  # Added import
@@ -7,7 +9,6 @@ from database import engine, SessionLocal, Base
 from controller.adminController import router as admin_router
 from controller.publicController import router as public_router
 from controller.call_controller import router as call_router
-from controller.notificationController import router as notification_router
 from controller.notificationController import (
     router as notification_router,
     notification_manager,  # Single source of truth instance
@@ -15,6 +16,7 @@ from controller.notificationController import (
 
 from service.notification_listener import notification_listener
 import admin_seed
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -47,14 +49,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS Middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins including http://127.0.0.1:5500
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows POST, GET, OPTIONS, etc.
-    allow_headers=["*"],  # Allows Authorization headers
+    allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allows all headers (Authorization, Content-Type, etc.)
 )
+
+
+             # Match your channel name
+
+
+
+
 app.include_router(admin_router)
 app.include_router(public_router)
 app.include_router(notification_router)
