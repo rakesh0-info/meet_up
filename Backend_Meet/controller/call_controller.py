@@ -144,6 +144,7 @@ async def send_call_request(
     create_notification(
         db=db,
         user_id=receiver_id,
+        sender_id=current_user.id,
         message=f"Incoming video call from {current_user.name or current_user.email}",
         notification_type="INCOMING_CALL",
         room_id=room_id
@@ -186,6 +187,8 @@ async def respond_to_call(
         create_notification(
             db=db,
             user_id=call_record.sender_id,
+            sender_id=current_user.id,
+
             message=f"{current_user.name or current_user.email} accepted your video call.",
             notification_type="CALL_ACCEPTED",
             room_id=call_record.room_id
@@ -203,6 +206,7 @@ async def respond_to_call(
         create_notification(
             db=db,
             user_id=call_record.sender_id,
+            sender_id=current_user.id,
             message=f"{current_user.name or current_user.email} rejected your video call.",
             notification_type="CALL_REJECTED",
             room_id=call_record.room_id

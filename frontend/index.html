@@ -1,147 +1,311 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Application Portal & Video AI Workbench</title>
+    <!-- Google Fonts Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Tailwind CSS for utility enhancements -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0369a1',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
     <!-- LiveKit Client SDK -->
     <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 </head>
-<body>
+
+<body
+    class="bg-slate-950 text-slate-100 min-h-screen selection:bg-cyan-500 selection:text-black overflow-x-hidden relative font-sans">
+
+    <div
+        class="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse">
+    </div>
+    <div
+        class="absolute top-1/3 right-1/4 w-[30rem] h-[30rem] bg-purple-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+    </div>
 
     <!-- Header Navigation -->
-    <header id="app-header" class="hidden">
-        <div class="user-greeting">
-            <span id="greeting-text">Welcome</span>
-            <span id="role-badge" class="badge-role">USER</span>
+    <header id="app-header"
+        class="hidden flex justify-between items-center px-6 lg:px-12 py-4 bg-slate-900/70 backdrop-blur-xl border-b border-slate-800/80 sticky top-0 z-50 shadow-2xl transition-all duration-300">
+        <div class="user-greeting flex items-center gap-3">
+            <div
+                class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-display font-bold text-lg shadow-lg shadow-cyan-500/20 text-white">
+                ✨
+            </div>
+            <div>
+                <span id="greeting-text"
+                    class="font-display font-semibold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Welcome</span>
+                <span id="role-badge"
+                    class="badge-role inline-block ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">USER</span>
+            </div>
         </div>
 
-        <div class="header-right">
+        <div class="header-right flex items-center gap-4">
             <!-- Wallet Widget -->
-            <div id="wallet-widget" class="wallet-badge">
-                Wallet: <span id="wallet-token-count">0</span> Tokens
+            <div id="wallet-widget"
+                class="wallet-badge flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-semibold shadow-inner transition-all hover:bg-amber-500/20">
+                <span class="animate-bounce">🪙</span> Wallet: <span id="wallet-token-count"
+                    class="font-display font-bold text-amber-300">0</span> Tokens
             </div>
 
             <!-- Notifications Dropdown -->
-            <div class="notification-container">
-                <div class="bell-icon" id="bell-btn" onclick="toggleNotifications()">
-                    🔔 <span class="badge hidden" id="notif-badge">0</span>
+            <div class="notification-container relative">
+                <div class="bell-icon w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-lg cursor-pointer relative transition-all hover:bg-slate-700 hover:border-slate-600 shadow-md"
+                    id="bell-btn" onclick="toggleNotifications()">
+                    🔔 <span
+                        class="badge hidden absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg border border-slate-900"
+                        id="notif-badge">0</span>
                 </div>
-                <div class="dropdown hidden" id="notif-dropdown">
-                    <h3>Notifications</h3>
-                    <div id="notif-list">
-                        <p class="empty-msg">No unread notifications</p>
+                <div class="dropdown hidden absolute right-0 top-12 w-80 bg-slate-900/95 backdrop-blur-2xl border border-slate-800 rounded-2xl shadow-2xl z-50 p-4 transition-all animate-in fade-in slide-in-from-top-2 duration-200"
+                    id="notif-dropdown">
+                    <h3
+                        class="font-display font-bold text-sm text-slate-200 mb-3 pb-2 border-b border-slate-800 flex items-center justify-between">
+                        <span>Notifications</span>
+                        <span class="text-xs text-cyan-400 font-normal">Real-time alerts</span>
+                    </h3>
+                    <div id="notif-list" class="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                        <p class="empty-msg text-xs text-slate-400 text-center py-6">No unread notifications</p>
                     </div>
                 </div>
             </div>
 
-            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+            <button
+                class="btn-logout px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm font-semibold transition-all hover:bg-rose-500 hover:text-white shadow-lg shadow-rose-500/10"
+                onclick="handleLogout()">Logout</button>
         </div>
     </header>
 
-    <div class="container">
-        
+    <div class="container max-w-6xl mx-auto px-4 py-8 lg:py-12">
+
         <!-- 1. AUTHENTICATION (LOGIN / REGISTER) -->
-        <div id="auth-screen" class="card">
-            <div class="tab-buttons">
-                <button id="tab-login-btn" class="active" onclick="switchAuthTab('login')">Login</button>
-                <button id="tab-register-btn" onclick="switchAuthTab('register')">Register</button>
+        <div id="auth-screen"
+            class="card max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute -right-16 -top-16 w-48 h-48 bg-cyan-500/20 rounded-full blur-2xl pointer-events-none">
+            </div>
+
+            <div class="text-center mb-6">
+                <h1
+                    class="font-display font-extrabold text-3xl tracking-tight bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 bg-clip-text text-transparent">
+                    AI Video Workbench</h1>
+                <p class="text-slate-400 text-sm mt-1">Sign in or create account to begin your session</p>
+            </div>
+
+            <div class="tab-buttons flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800/80 mb-6">
+                <button id="tab-login-btn"
+                    class="active flex-1 py-2.5 rounded-xl font-display font-semibold text-sm transition-all text-cyan-400 bg-slate-800/80 shadow-md"
+                    onclick="switchAuthTab('login')">Login</button>
+                <button id="tab-register-btn"
+                    class="flex-1 py-2.5 rounded-xl font-display font-semibold text-sm transition-all text-slate-400 hover:text-slate-200"
+                    onclick="switchAuthTab('register')">Register</button>
             </div>
 
             <!-- Login Form -->
-            <form id="login-form" onsubmit="handleLogin(event)">
-                <h2>Login</h2>
-                <input type="email" id="login-email" placeholder="Email Address" required>
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit">Sign In</button>
-                <button type="button" class="link-button" onclick="showPasswordReset()">Forgot password?</button>
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <h2 class="hidden">Login</h2>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
+                    <input type="email" id="login-email" placeholder="name@example.com" required
+                        class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required
+                        class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all">
+                </div>
+                <button type="submit"
+                    class="w-full py-3.5 rounded-xl font-display font-bold text-sm bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/25 hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer">Sign
+                    In</button>
+                <button type="button"
+                    class="link-button w-full text-center text-xs text-cyan-400 hover:text-cyan-300 font-medium pt-1"
+                    onclick="showPasswordReset()">Forgot password?</button>
             </form>
 
             <!-- Registration Form -->
-            <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
-                <h2>Register</h2>
-                <input type="text" id="reg-name" placeholder="Full Name" required>
-                <input type="email" id="reg-email" placeholder="Email Address" required>
-                <input type="password" id="reg-password" placeholder="Password" required>
-                <button type="submit">Create Account</button>
+            <form id="register-form" class="hidden space-y-4" onsubmit="handleRegister(event)">
+                <h2 class="hidden">Register</h2>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
+                    <input type="text" id="reg-name" placeholder="John Doe" required
+                        class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
+                    <input type="email" id="reg-email" placeholder="name@example.com" required
+                        class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                    <input type="password" id="reg-password" placeholder="Create a secure password" required
+                        class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all">
+                </div>
+                <button type="submit"
+                    class="w-full py-3.5 rounded-xl font-display font-bold text-sm bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/25 hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer">Create
+                    Account</button>
             </form>
         </div>
 
         <!-- PASSWORD RESET: EMAIL STEP -->
-        <div id="password-reset-email-screen" class="card hidden">
-            <h2>Reset Password</h2>
-            <p>Enter your email to receive a reset OTP and key.</p>
-            <form onsubmit="handleForgotPassword(event)">
-                <input type="email" id="forgot-email" placeholder="Email Address" required>
-                <button type="submit">Send Reset Details</button>
+        <div id="password-reset-email-screen"
+            class="card max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl hidden space-y-6">
+            <div>
+                <h2 class="font-display font-bold text-2xl text-slate-100">Reset Password</h2>
+                <p class="text-slate-400 text-sm mt-1">Enter your email to receive a secure reset OTP and key.</p>
+            </div>
+            <form onsubmit="handleForgotPassword(event)" class="space-y-4">
+                <input type="email" id="forgot-email" placeholder="Email Address" required
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500">
+                <button type="submit"
+                    class="w-full py-3 rounded-xl font-display font-bold text-sm bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all">Send
+                    Reset Details</button>
             </form>
-            <button type="button" onclick="hidePasswordReset()">Back to login</button>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
         </div>
 
         <!-- PASSWORD RESET: OTP STEP -->
-        <div id="password-reset-otp-screen" class="card hidden">
-            <h2>Verify Reset OTP</h2>
-            <p>Enter the OTP sent to <strong id="reset-otp-email"></strong>.</p>
-            <form onsubmit="handleResetOTP(event)">
-                <input type="text" id="reset-otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off">
-                <button type="submit">Verify OTP</button>
+        <div id="password-reset-otp-screen"
+            class="card max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl hidden space-y-6">
+            <div>
+                <h2 class="font-display font-bold text-2xl text-slate-100">Verify Reset OTP</h2>
+                <p class="otp-subtext text-slate-400 text-sm mt-1">Enter the OTP sent to <strong id="reset-otp-email"
+                        class="text-cyan-400"></strong>.</p>
+            </div>
+            <form onsubmit="handleResetOTP(event)" class="space-y-4">
+                <input type="text" id="reset-otp-input" placeholder="6-Digit OTP" maxlength="6" required
+                    autocomplete="off"
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-center tracking-widest text-lg font-mono text-slate-200 focus:outline-none focus:border-cyan-500">
+                <button type="submit"
+                    class="w-full py-3 rounded-xl font-display font-bold text-sm bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all">Verify
+                    OTP</button>
             </form>
-            <button type="button" onclick="hidePasswordReset()">Back to login</button>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
         </div>
 
         <!-- PASSWORD RESET: NEW PASSWORD STEP -->
-        <div id="password-reset-form-screen" class="card hidden">
-            <h2>Choose a New Password</h2>
-            <form onsubmit="handleResetPassword(event)">
-                <input type="text" id="reset-key" placeholder="Reset key" required>
-                <input type="password" id="reset-new-password" placeholder="New password" required>
-                <input type="password" id="reset-confirm-password" placeholder="Confirm new password" required>
-                <button type="submit">Reset Password</button>
+        <div id="password-reset-form-screen"
+            class="card max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl hidden space-y-6">
+            <div>
+                <h2 class="font-display font-bold text-2xl text-slate-100">Choose a New Password</h2>
+                <p class="text-slate-400 text-sm mt-1">Please provide your reset token and your secure new password.</p>
+            </div>
+            <form onsubmit="handleResetPassword(event)" class="space-y-4">
+                <input type="text" id="reset-key" placeholder="Reset key" required
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500">
+                <input type="password" id="reset-new-password" placeholder="New password" required
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500">
+                <input type="password" id="reset-confirm-password" placeholder="Confirm new password" required
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500">
+                <button type="submit"
+                    class="w-full py-3 rounded-xl font-display font-bold text-sm bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all">Reset
+                    Password</button>
             </form>
-            <button type="button" onclick="hidePasswordReset()">Back to login</button>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
         </div>
 
         <!-- 2. DEDICATED OTP VERIFICATION SCREEN -->
-        <div id="otp-screen" class="card hidden">
-            <h2>Enter Verification OTP</h2>
-            <p class="otp-subtext">OTP sent to: <strong id="otp-target-email"></strong></p>
-            <form onsubmit="handleVerifyOTP(event)">
-                <input type="text" id="otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off">
-                <button type="submit">Verify Account</button>
+        <div id="otp-screen"
+            class="card max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl hidden space-y-6">
+            <div>
+                <h2 class="font-display font-bold text-2xl text-slate-100">Enter Verification OTP</h2>
+                <p class="otp-subtext text-slate-400 text-sm mt-1">OTP sent to: <strong id="otp-target-email"
+                        class="text-cyan-400"></strong></p>
+            </div>
+            <form onsubmit="handleVerifyOTP(event)" class="space-y-4">
+                <input type="text" id="otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off"
+                    class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-center tracking-widest text-lg font-mono text-slate-200 focus:outline-none focus:border-cyan-500">
+                <button type="submit"
+                    class="w-full py-3 rounded-xl font-display font-bold text-sm bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 hover:opacity-95 transition-all">Verify
+                    Account</button>
             </form>
         </div>
 
         <!-- 3. MAIN DASHBOARD SCREEN -->
-        <div id="dashboard-screen" class="dashboard hidden">
-            
+        <div id="dashboard-screen" class="dashboard hidden space-y-10">
+
             <!-- ADMIN VIEW: System & User Usage Analytics -->
-            <section id="admin-summary-section" class="section hidden">
-                <h2>System Analytics & Token Usage</h2>
-                <div id="admin-usage-card" class="summary-card">
-                    <p>Loading stats...</p>
+            <section id="admin-summary-section" class="section hidden space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h2
+                        class="font-display font-bold text-2xl bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                        System Analytics & Token Usage</h2>
+                    <span
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">Admin
+                        Control</span>
                 </div>
-                <div class="summary-card">
-                    <h3>Add Subscription Plan</h3>
-                    <form onsubmit="handleAddPlan(event)">
-                        <input type="text" id="plan-name" placeholder="Plan name" required>
-                        <input type="text" id="plan-description" placeholder="Description">
-                        <input type="number" id="plan-token-balance" placeholder="Token amount" min="1" required>
-                        <input type="number" id="plan-amount" placeholder="Price (INR)" min="1" step="1" required>
-                        <button type="submit">Add Plan</button>
+                <div id="admin-usage-card"
+                    class="summary-card bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 p-6 rounded-3xl shadow-xl">
+                    <p class="text-slate-400 text-sm animate-pulse">Loading stats...</p>
+                </div>
+                <div
+                    class="summary-card bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-4">
+                    <h3 class="font-display font-bold text-lg text-slate-200">Add Subscription Plan</h3>
+                    <form onsubmit="handleAddPlan(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="plan-name" placeholder="Plan name" required
+                            class="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                        <input type="text" id="plan-description" placeholder="Description"
+                            class="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                        <input type="number" id="plan-token-balance" placeholder="Token amount" min="1" required
+                            class="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                        <input type="number" id="plan-amount" placeholder="Price (INR)" min="1" step="1" required
+                            class="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                        <button type="submit"
+                            class="md:col-span-2 py-3 rounded-xl font-display font-bold text-sm bg-purple-600 text-white hover:bg-purple-500 transition-all shadow-lg shadow-purple-600/20">Add
+                            Plan</button>
                     </form>
                 </div>
+
             </section>
+            <!-- ADMIN CALL HISTORY -->
+
 
             <!-- DASHBOARD VIDEO CALL AI SUMMARY CARD -->
             <section id="dashboard-summary-card" class="section hidden">
-                <h2>🤖 Recent Video Call AI Summary</h2>
-                <div class="summary-card dashboard-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span class="badge-role">Room: <span id="dashboard-summary-room">N/A</span></span>
-                        <button onclick="document.getElementById('dashboard-summary-card').classList.add('hidden')">Dismiss</button>
+                <div
+                    class="summary-card dashboard-card bg-slate-900/90 backdrop-blur-2xl border border-cyan-500/40 p-6 rounded-3xl shadow-2xl relative overflow-hidden">
+                    <div
+                        class="absolute -right-20 -bottom-20 w-48 h-48 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none">
                     </div>
-                    <p id="dashboard-summary-text" style="white-space: pre-line; color: #f8fafc; font-size: 0.95rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h2 class="font-display font-bold text-lg text-cyan-400 flex items-center gap-2">🤖 Recent Video
+                            Call AI Summary</h2>
+                        <span
+                            class="badge-role bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3 py-1 rounded-full text-xs">Room:
+                            <span id="dashboard-summary-room">N/A</span></span>
+                        <button onclick="document.getElementById('dashboard-summary-card').classList.add('hidden')"
+                            class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-colors">Dismiss</button>
+                    </div>
+                    <p id="dashboard-summary-text" style="white-space: pre-line; color: #f8fafc; font-size: 0.95rem;"
+                        class="leading-relaxed font-sans bg-slate-950/40 p-4 rounded-xl border border-slate-800/80">
                         Summary loading...
                     </p>
                 </div>
@@ -149,87 +313,170 @@
 
             <!-- LIVE VIDEO CALL WORKBENCH SECTION -->
             <section id="video-call-section" class="section hidden">
-                <div class="card full-width">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>Live Video Session & AI Workbench (Room: <span id="active-room-display">None</span>)</h2>
-                        <button class="btn-danger" onclick="endCallSession()">End Call</button>
+                <div
+                    class="card full-width bg-slate-900/80 backdrop-blur-2xl border border-cyan-500/30 p-6 lg:p-8 rounded-3xl shadow-2xl space-y-6 max-w-none">
+                    <div
+                        class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+                        <div>
+                            <h2 class="font-display font-bold text-xl text-slate-100 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Video Session & AI Workbench
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Active Room: <span id="active-room-display"
+                                    class="font-mono text-cyan-400 font-semibold">None</span></p>
+                        </div>
+                        <button
+                            class="btn-danger px-5 py-2.5 rounded-xl font-display font-bold text-sm bg-rose-600 text-white hover:bg-rose-500 transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                            onclick="endCallSession()">
+                            <span>🛑</span> End Call
+                        </button>
                     </div>
 
-                    <div id="low-token-alert" class="alert-banner hidden">
-                        ⚠️ Low Token Warning: Wallet balance is 20 tokens or lower!
+                    <div id="low-token-alert"
+                        class="alert-banner hidden bg-amber-500/20 border border-amber-500/40 text-amber-300 p-4 rounded-2xl text-sm font-medium flex items-center gap-3 shadow-lg">
+                        <span class="text-xl">⚠️</span> Low Token Warning: Wallet balance is 20 tokens or lower! Top up
+                        to continue seamless AI services.
                     </div>
 
                     <!-- Video Grid & Captions Overlay -->
-                    <div class="video-grid">
-                        <video id="localVideo" autoplay muted playsinline></video>
-                        <video id="remoteVideo" autoplay playsinline></video>
-                        <div id="captionOverlay" class="caption-overlay hidden">
-                            <span id="captionSpeaker"></span>: <span id="captionText"></span>
+                    <div
+                        class="video-grid grid grid-cols-1 md:grid-cols-2 gap-4 relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 p-2 shadow-inner min-h-[320px]">
+                        <div
+                            class="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-800 group shadow-lg">
+                            <video id="localVideo" autoplay muted playsinline class="w-full h-72 object-cover"></video>
+                            <span
+                                class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-cyan-400 border border-slate-700/50">You
+                                (Local)</span>
+                        </div>
+                        <div
+                            class="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-800 group shadow-lg">
+                            <video id="remoteVideo" autoplay playsinline class="w-full h-72 object-cover"></video>
+                            <span
+                                class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-emerald-400 border border-slate-700/50">Remote
+                                Participant</span>
+                        </div>
+                        <div id="captionOverlay"
+                            class="caption-overlay hidden absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-950/90 backdrop-blur-xl border border-cyan-500/50 px-6 py-3 rounded-2xl text-slate-100 text-sm text-center max-w-[85%] shadow-2xl">
+                            <span id="captionSpeaker" class="text-cyan-400 font-bold"></span>: <span
+                                id="captionText"></span>
                         </div>
                     </div>
 
                     <!-- Speech Input Control -->
-                    <div class="speech-controls">
-                        <input type="text" id="speechInput" placeholder="Type or simulate speech input..." />
-                        <button onclick="sendSpeechInput()">Send Speech Chunk</button>
+                    <div class="speech-controls flex gap-3">
+                        <input type="text" id="speechInput" placeholder="Type or simulate speech input..."
+                            class="flex-1 bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-cyan-500" />
+                        <button onclick="sendSpeechInput()"
+                            class="px-6 py-3 rounded-xl font-display font-bold text-sm bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all shadow-lg shadow-cyan-500/20">Send
+                            Speech Chunk</button>
                     </div>
 
                     <!-- Dual Section: Live Transcript & Summary -->
-                    <div class="transcript-summary-grid">
-                        <div>
-                            <h3>Real-Time Live English Transcript</h3>
-                            <div id="transcriptBox" class="transcript-box">
-                                <p class="empty-msg">Transcripts will render live during the call...</p>
+                    <div class="transcript-summary-grid grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                        <div class="space-y-3 bg-slate-950/40 p-5 rounded-2xl border border-slate-800/80">
+                            <h3 class="font-display font-bold text-sm text-slate-200 flex items-center justify-between">
+                                <span>Real-Time Live English Transcript</span>
+                                <span class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></span>
+                            </h3>
+                            <div id="transcriptBox"
+                                class="transcript-box h-48 overflow-y-auto bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs flex flex-col gap-2 custom-scrollbar">
+                                <p class="empty-msg text-slate-500 italic text-center my-auto">Transcripts will render
+                                    live during the call...</p>
                             </div>
                         </div>
-                        <div>
-                            <h3>AI Call Summary</h3>
-                            <button onclick="fetchSummary()" style="margin-bottom: 8px;">Generate Summary</button>
-                            <textarea id="summaryDisplay" readonly placeholder="Click button above to generate Gemini summary..."></textarea>
+                        <div class="space-y-3 bg-slate-950/40 p-5 rounded-2xl border border-slate-800/80">
+                            <h3 class="font-display font-bold text-sm text-slate-200">AI Call Summary</h3>
+                            <button onclick="fetchSummary()"
+                                class="w-full py-2.5 rounded-xl font-display font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 transition-all shadow-sm">Generate
+                                Gemini Summary</button>
+                            <textarea id="summaryDisplay" readonly
+                                placeholder="Click button above to generate Gemini summary..."
+                                class="w-full h-32 bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 resize-none focus:outline-none custom-scrollbar"></textarea>
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- USER FEATURE PLACEHOLDERS -->
-            <section id="user-features-section" class="section">
-                <h2>Interactive Services</h2>
-                <div class="grid">
-                    <div class="item-card feature-card">
-                        <h3>📹 Video Call Station</h3>
-                        <p>Select any user from the directory below to initiate a video session.</p>
+            <section id="user-features-section" class="section space-y-4">
+                <h2 class="font-display font-bold text-2xl text-slate-100">Interactive Services</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div
+                        class="item-card feature-card bg-slate-900/60 backdrop-blur-xl border border-cyan-500/30 p-6 rounded-3xl shadow-xl hover:border-cyan-500/60 transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+                            📹</div>
+                        <h3 class="font-display font-bold text-lg text-slate-200">Video Call Station</h3>
+                        <p class="text-slate-400 text-sm mt-1">Select any user from the directory below to initiate a
+                            secure video session.</p>
                     </div>
 
-                    <div class="item-card feature-card">
-                        <h3>📄 Talk to AI via Document</h3>
-                        <p>Upload a document (PDF/DOCX) to interact with AI.</p>
-                        <input type="file" id="doc-upload-input" accept=".pdf,.docx,.txt" style="margin-top: 5px;">
-                        <button onclick="handleDocUploadPlaceholder()">Upload & Analyze</button>
+                    <div
+                        class="item-card feature-card bg-slate-900/60 backdrop-blur-xl border border-cyan-500/30 p-6 rounded-3xl shadow-xl hover:border-cyan-500/60 transition-all group flex flex-col justify-between">
+                        <div>
+                            <div
+                                class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+                                📄</div>
+                            <h3 class="font-display font-bold text-lg text-slate-200">Talk to AI via Document</h3>
+                            <p class="text-slate-400 text-sm mt-1">Upload a document (PDF/DOCX) to interact with
+                                intelligent AI assistants.</p>
+                        </div>
+                        <div class="space-y-3 pt-4 mt-4 border-t border-slate-800">
+                            <input type="file" id="doc-upload-input" accept=".pdf,.docx,.txt"
+                                class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cyan-500/20 file:text-cyan-400 hover:file:bg-cyan-500/30 cursor-pointer">
+                            <button onclick="handleDocUploadPlaceholder()"
+                                class="w-full py-2.5 rounded-xl font-display font-bold text-xs bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all shadow-md">Upload
+                                & Analyze</button>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <!-- TOKEN SUBSCRIPTION PLANS -->
-            <section class="section">
-                <h2>Token Top-Up Plans</h2>
-                <div id="plans-grid" class="grid"></div>
+            <section class="section space-y-4">
+                <h2 class="font-display font-bold text-2xl text-slate-100">Token Top-Up Plans</h2>
+                <div id="plans-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
             </section>
 
             <!-- USER DIRECTORY -->
-            <section class="section">
-                <h2>User Directory</h2>
-                <div id="users-grid" class="grid"></div>
+            <section class="section space-y-4">
+                <h2 class="font-display font-bold text-2xl text-slate-100">User Directory</h2>
+                <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </section>
 
             <!-- FRIENDS AND CALL HISTORY -->
-            <section id="friends-section" class="section">
-                <h2>My Friends</h2>
-                <div id="friends-grid" class="grid"></div>
+            <section id="friends-section" class="section space-y-4">
+                <h2 class="font-display font-bold text-2xl text-slate-100">My Friends</h2>
+                <div id="friends-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </section>
 
-            <section id="completed-calls-section" class="section">
-                <h2>Completed Calls</h2>
-                <div id="completed-calls-list" class="grid"></div>
+            <section id="admin-calls-section" class="section hidden space-y-6">
+
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                        <h2
+                            class="font-display font-bold text-2xl bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                            Video Call History
+                        </h2>
+                        <p class="text-slate-400 text-sm mt-1">
+                            All user-to-user video calls
+                        </p>
+                    </div>
+
+                    <span
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        Admin
+                    </span>
+                </div>
+
+                <div id="admin-calls-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+                    <p class="empty-msg text-slate-400">
+                        Loading call history...
+                    </p>
+
+                </div>
+
             </section>
 
         </div>
@@ -237,4 +484,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

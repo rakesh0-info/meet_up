@@ -87,12 +87,13 @@ async def get_unread_notifications(
         response.append({
             "id": notif.id,
             "user_id": notif.user_id,
+            "sender_id": notif.sender_id,
             "message": notif.message,
             "notification_type": notif.notification_type,
             "room_id": notif.room_id,  # ADDED: Include room_id in response
             "is_read": notif.is_read,
             "created_at": notif.created_at,
-            "sender_id": sender_id
+            
         })
 
     return response

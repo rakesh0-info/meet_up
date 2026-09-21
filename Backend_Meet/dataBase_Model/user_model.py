@@ -32,5 +32,10 @@ class User(Base):
 
     # Relationships
     subscriptions = relationship("Video_Call_Subscription", back_populates="user", cascade="all, delete-orphan")
-    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship(
+        "Notification", 
+        foreign_keys="[Notification.user_id]", 
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     document_chats = relationship("DocumentChat", back_populates="user", cascade="all, delete-orphan")

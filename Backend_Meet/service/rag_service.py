@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from database import SessionLocal
 from dataBase_Model.document_rag import DocumentChat, DocumentChunk
@@ -34,8 +35,13 @@ def extract_text_from_file(file_path: str) -> str:
 
     else:
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
+        try:
+        
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()  
+        except Exception as e:
+            print(f"An error occurred during the file read: {e}")
+            raise HTTPException(status_code=400, detail="Something went wrong")
 
     return text
 

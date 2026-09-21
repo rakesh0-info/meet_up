@@ -128,6 +128,7 @@ def fulfill_subscription(session: stripe.checkout.Session, db: Session):
     # 2. Record subscription log
     new_subscription = Video_Call_Subscription(
         user_id=user.id,
+        
         stripe_payment_id=session_id,
         token_amount=tokens_to_add,
         status=PlanStatus.ACTIVE
@@ -136,7 +137,8 @@ def fulfill_subscription(session: stripe.checkout.Session, db: Session):
     create_notification(
         db= db,
         user_id = user_id,
-        message= f"pyement done",
+        sender_id=user_id,
+        message= f"Payment completed",
         notification_type= "SUCESS PAYMENT",
     )
 
@@ -161,6 +163,7 @@ def handle_failed_payment(session: stripe.checkout.Session, db: Session):
 
     failed_sub = Video_Call_Subscription(
         user_id=int(user_id),
+
         stripe_payment_id=session_id,
         token_amount=0,
         status=PlanStatus.EXPIRED
@@ -169,6 +172,7 @@ def handle_failed_payment(session: stripe.checkout.Session, db: Session):
     create_notification(
             db= db,
             user_id = user_id,
+            sender_id=user_id,
             message= f"pyement Faild",
             notification_type= "FAILD PAYMENT",
         )
@@ -477,9 +481,14 @@ async def send_friend_request(
 
    
     existing_request = db.query(FriendRequest).filter(
-        FriendRequest.sender_id == current_user.id,
-        FriendRequest.receiver_id == receiver_id
-    ).first()
+        or_( 
+    and_(FriendRequest.sender_id == current_user.id, 
+         FriendRequest.receiver_id == receiver_id), 
+    and_(FriendRequest.sender_id == receiver_id, 
+         FriendRequest.receiver_id == current_user.id) 
+) 
+
+  ).first()
 
     if existing_request:
         raise HTTPException(
@@ -500,9 +509,10 @@ async def send_friend_request(
     create_notification(
         db=db,
         user_id=receiver_id,
+        sender_id=current_user.id,
         message=f"New friend request from: {current_user.name} [sender_id:{current_user.id}]",
         notification_type="FRIEND_REQUEST",
-        sender_id=current_user.id,
+        
     )
 
     return {"message": f"Friend request sent to: {exist_user.name}"}
@@ -556,6 +566,7 @@ async def friend_request_update(
     create_notification(
         db=db,
         user_id=sender_id,
+        sender_id=current_user.id,
         message=notification_msg,
         notification_type=notification_type
     )
@@ -727,7 +738,7 @@ async def ask_document_question(
             """
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",
+        model="gemini-3.6-flash",
         contents=prompt
     )
 

@@ -413,36 +413,264 @@ function startPlansRefresh() {
 
 async function loadAdminDashboard() {
     document.getElementById('admin-summary-section').classList.remove('hidden');
+
+    // Show admin call history section
+    const adminCallsSection = document.getElementById('admin-calls-section');
+    if (adminCallsSection) {
+        adminCallsSection.classList.remove('hidden');
+    }
+
     try {
-        const adminData = await request('/api/v1/admin/admin_dashboard', 'GET');
-        
-        const me = adminData.users.find(u => u.email === currentEmail);
+        const adminData = await request(
+            '/api/v1/admin/admin_dashboard',
+            'GET'
+        );
+
+        console.log("ADMIN DASHBOARD RESPONSE:", adminData);
+
+        // =========================================================
+        // ADMIN USER / WALLET INFORMATION
+        // =========================================================
+
+        const me = adminData.users.find(
+            u => u.email === currentEmail
+        );
+
         if (me) {
             currentUserId = me.id;
-            updateWalletDisplay(me.current_token_balance);
+            updateWalletDisplay(
+                me.current_token_balance || 0
+            );
         }
 
+        // =========================================================
+        // ADMIN SUMMARY
+        // =========================================================
+
         document.getElementById('admin-usage-card').innerHTML = `
-            <p><strong>Total Tokens Used Today:</strong> ${adminData.total_tokens_used_today}</p>
-            <p><strong>Total System Users:</strong> ${adminData.total_users}</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div class="item-card">
+                    <h3>Total Tokens Used Today</h3>
+                    <p class="text-2xl font-bold text-cyan-400">
+                        ${adminData.total_tokens_used_today || 0}
+                    </p>
+                </div>
+
+                <div class="item-card">
+                    <h3>Total System Users</h3>
+                    <p class="text-2xl font-bold text-purple-400">
+                        ${adminData.total_users || 0}
+                    </p>
+                </div>
+
+            </div>
         `;
 
+        // =========================================================
+        // USERS
+        // =========================================================
+
         const usersGrid = document.getElementById('users-grid');
-        const otherUsers = adminData.users.filter(u => u.email !== currentEmail);
+
+        const otherUsers = (adminData.users || []).filter(
+            u => u.email !== currentEmail
+        );
 
         usersGrid.innerHTML = otherUsers.map(u => `
             <div class="item-card">
-                <h3>${u.name || u.email}</h3>
-                <p><strong>Email:</strong> ${u.email}</p>
-                <p><strong>Role:</strong> ${u.role}</p>
-                <p><strong>Wallet Balance:</strong> ${u.current_token_balance} Tokens</p>
-                <p><strong>Tokens Used:</strong> ${u.tokens_used}</p>
+
+                <h3>
+                    ${escapeHtml(u.name || u.email)}
+                </h3>
+
+                <p>
+                    <strong>Email:</strong>
+                    ${escapeHtml(u.email)}
+                </p>
+
+                <p>
+                    <strong>Role:</strong>
+                    ${escapeHtml(u.role || 'N/A')}
+                </p>
+
+                <p>
+                    <strong>Wallet Balance:</strong>
+                    ${u.current_token_balance || 0} Tokens
+                </p>
+
+                <p>
+                    <strong>Tokens Used:</strong>
+                    ${u.tokens_used || 0}
+                </p>
+
             </div>
         `).join('');
 
+        // =========================================================
+        // ADMIN CALL HISTORY
+        // =========================================================
+
+        renderAdminCalls(adminData.calls || []);
+
     } catch (e) {
-        console.error("Error loading admin dashboard", e);
+
+        console.error(
+            "Error loading admin dashboard:",
+            e
+        );
+
+        const callsList =
+            document.getElementById('admin-calls-list');
+
+        if (callsList) {
+            callsList.innerHTML = `
+                <p class="empty-msg text-rose-400">
+                    Failed to load call history.
+                </p>
+            `;
+        }
     }
+}
+
+function renderAdminCalls(calls) {
+
+    const callsList =
+        document.getElementById('admin-calls-list');
+
+    if (!callsList) {
+        console.warn(
+            "admin-calls-list element was not found"
+        );
+        return;
+    }
+
+    console.log(
+        "Rendering admin calls:",
+        calls
+    );
+
+    // No calls
+    if (!Array.isArray(calls) || calls.length === 0) {
+
+        callsList.innerHTML = `
+            <div class="col-span-full item-card text-center">
+                <div class="text-4xl mb-3">
+                    📹
+                </div>
+
+                <h3>
+                    No Completed Calls
+                </h3>
+
+                <p>
+                    No video calls have been completed yet.
+                </p>
+            </div>
+        `;
+
+        return;
+    }
+
+    callsList.innerHTML = calls.map(call => {
+
+        const startTime =
+            call.start_time
+                ? new Date(call.start_time).toLocaleString()
+                : 'Unknown';
+
+        const endTime =
+            call.end_time
+                ? new Date(call.end_time).toLocaleString()
+                : 'Unknown';
+
+        const duration =
+            Number(call.duration_seconds || 0);
+
+        const minutes =
+            Math.floor(duration / 60);
+
+        const seconds =
+            duration % 60;
+
+        const durationText =
+            `${minutes}m ${seconds}s`;
+
+        const status =
+            String(call.status || 'UNKNOWN')
+                .replace(/^.*\./, '');
+
+        return `
+            <div class="item-card">
+
+                <div class="flex justify-between items-start gap-3">
+
+                    <div>
+                        <h3>
+                            📹 Video Call
+                        </h3>
+
+                        <p class="text-xs text-slate-500 break-all">
+                            Room:
+                            ${escapeHtml(call.room_id || 'N/A')}
+                        </p>
+                    </div>
+
+                    <span class="px-2 py-1 rounded-full text-xs font-bold
+                        ${status.toUpperCase() === 'COMPLETED'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        }">
+
+                        ${escapeHtml(status)}
+
+                    </span>
+
+                </div>
+
+                <div class="mt-4 space-y-2">
+
+                    <p>
+                        <strong>Sender:</strong>
+                        ${escapeHtml(
+                            call.sender_name || 'Unknown Sender'
+                        )}
+                    </p>
+
+                    <p>
+                        <strong>Receiver:</strong>
+                        ${escapeHtml(
+                            call.receiver_name || 'Unknown Receiver'
+                        )}
+                    </p>
+
+                    <p>
+                        <strong>Tokens Consumed:</strong>
+                        ${Number(call.tokens_consumed || 0)}
+                    </p>
+
+                    <p>
+                        <strong>Duration:</strong>
+                        ${durationText}
+                    </p>
+
+                    <p>
+                        <strong>Started:</strong>
+                        ${escapeHtml(startTime)}
+                    </p>
+
+                    <p>
+                        <strong>Ended:</strong>
+                        ${escapeHtml(endTime)}
+                    </p>
+
+                </div>
+
+                
+
+            </div>
+        `;
+    }).join('');
 }
 
 async function handleAddPlan(event) {
@@ -1036,6 +1264,13 @@ function connectCallWebSocket(roomId) {
         try {
             const data = JSON.parse(event.data);
             const msgType = (data.type || '').toUpperCase();
+
+            if (msgType === "CALL_ENDED_NO_TOKENS") {
+                alert(data.message || "Your token balance has run out. The call has been terminated.");
+                leaveVideoCallSession();
+                fetchNotifications();
+                return;
+            }
 
             if (msgType === "BALANCE_UPDATE" || data.current_balance !== undefined) {
                 updateWalletDisplay(data.current_balance);

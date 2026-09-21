@@ -20,9 +20,19 @@ from dataBase_Model.video_call_subscription import Video_Call_Subscription
 from dataBase_Model.video_call import VideoCall
 from enums.plan_status import status as PlanStatus
 
+from enums.call_status import CallStatus
+
 
 
 load_dotenv()
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+if not STRIPE_SECRET_KEY:
+    raise RuntimeError("STRIPE_SECRET_KEY is not set in environment variables.")
+
+stripe.api_key=STRIPE_SECRET_KEY
+
 
 router=APIRouter(prefix="/api/v1/admin")
 
@@ -36,22 +46,17 @@ async def admin_dashboard(
     curr: User = Depends(require_roles(roleEnum.Role.ADMIN))
 ):
     try:
-        # 1. Fetch all users
+        # 1. Fetch all users and calculate token stats
         users = db.query(User).all()
         
         user_data = []
         for user in users:
-            # Safely fetch active or all subscriptions for the user
             subs = db.query(Video_Call_Subscription).filter(
                 Video_Call_Subscription.user_id == user.id
             ).all()
             
-            # Sum up total allocated tokens from all video call subscriptions for this user
             total_allocated = sum(getattr(sub, "token_amount", 0) for sub in subs) if subs else 0
-            
-            # Fetch current balance (fallback to subscription balance if user balance isn't present)
             current_balance = user.token_balance
-                
             tokens_used = max(0, total_allocated - current_balance)
             
             user_data.append({
@@ -68,7 +73,6 @@ async def admin_dashboard(
         today_start = datetime.combine(datetime.utcnow().date(), time.min)
         today_end = datetime.combine(datetime.utcnow().date(), time.max)
 
-        # Check if VideoCall has tokens_consumed or tokens_used column
         today_tokens_used = (
             db.query(func.coalesce(func.sum(VideoCall.tokens_consumed), 0))
             .filter(VideoCall.start_time >= today_start, VideoCall.start_time <= today_end)
@@ -76,10 +80,40 @@ async def admin_dashboard(
             or 0
         )
 
+        
+        calls = db.query(VideoCall).filter(
+    or_(
+        VideoCall.status == CallStatus.COMPLETED,
+        VideoCall.status == CallStatus.TERMINATED_NO_TOKENS
+    )
+).order_by(VideoCall.start_time.desc()).all()
+        
+        calls_data = []
+        for call in calls:
+          
+            sender_id = getattr(call, "sender_id", None) or getattr(call, "caller_id", None)
+            receiver_id = getattr(call, "receiver_id", None)
+            
+           
+            sender = db.query(User).filter(User.id == sender_id).first() if sender_id else None
+            receiver = db.query(User).filter(User.id == receiver_id).first() if receiver_id else None
+            
+            calls_data.append({
+                "room_id": getattr(call, "room_id", "N/A"),
+                "status": str(getattr(call, "status", "UNKNOWN")),
+                "sender_name": getattr(sender, "name", None) or getattr(sender, "email", "Unknown Sender"),
+                "receiver_name": getattr(receiver, "name", None) or getattr(receiver, "email", "Unknown Receiver"),
+                "tokens_consumed": getattr(call, "tokens_consumed", 0),
+                "start_time": getattr(call, "start_time", None),
+                "end_time": getattr(call, "end_time", None),
+                "duration_seconds": getattr(call, "duration_seconds", 0)
+            })
+
         return {
             "users": user_data,
             "total_users": len(users),
-            "total_tokens_used_today": today_tokens_used
+            "total_tokens_used_today": today_tokens_used,
+            "calls": calls_data
         }
 
     except Exception as e:
@@ -88,7 +122,6 @@ async def admin_dashboard(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Dashboard calculation error: {str(e)}"
         )
-
 
 
 @router.post("/add_new_plan", status_code=status.HTTP_201_CREATED)

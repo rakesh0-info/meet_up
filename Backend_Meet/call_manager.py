@@ -8,6 +8,7 @@ from database import get_db
 from dataBase_Model.video_call import VideoCall
 from dataBase_Model.user_model import User
 from enums.call_status import CallStatus
+from service.notification_service import create_notification
 
 
 class CallManager:
@@ -84,72 +85,117 @@ class CallManager:
                 finally:
                     db.close()
 
-                    
+
+
     async def start_minute_token_billing(self, room_id: str):
-            try:
-                print(f"[BILLING INFO] Billing task started for room: {room_id}")
-                while True:
-                    await asyncio.sleep(60)  # 1 minute interval
+        try:
+            print(f"[BILLING INFO] Billing task started for room: {room_id}")
+            while True:
+                await asyncio.sleep(60)  # 1 minute interval
 
-                    db_gen = get_db()
-                    db: Session = next(db_gen)
+                db_gen = get_db()
+                db: Session = next(db_gen)
 
-                    try:
-                        call_record = db.query(VideoCall).filter(VideoCall.room_id == room_id).first()
-                        if not call_record or call_record.status != CallStatus.ACTIVE:
-                            print(f"[BILLING WARNING] Record not found for {room_id}")
+                try:
+                    call_record = db.query(VideoCall).filter(VideoCall.room_id == room_id).first()
+                    if not call_record or call_record.status != CallStatus.ACTIVE:
+                        print(f"[BILLING WARNING] Record not found for {room_id}")
+                        continue
+
+                    participant_ids = [conn["user_id"] for conn in self.active_connections.get(room_id, [])]
+                    billed_anyone = False
+
+                    for uid in participant_ids:
+                        user = db.query(User).filter(User.id == uid).first()
+                        if not user:
                             continue
 
-                        # Get active participant IDs from connections or record
-                        participant_ids = [conn["user_id"] for conn in self.active_connections.get(room_id, [])]
-                        for uid in participant_ids:
-                            user = db.query(User).filter(User.id == uid).first()
-                            if not user:
-                                continue
+                        # 1. Check if user already has 0 or fewer tokens before deducting
+                        if user.token_balance <= 0:
+                            create_notification(
+                                db=db,
+                                user_id=uid,
+                                sender_id=uid,
+                                message="Your token balance has run out. The call has been terminated.",
+                                notification_type="CALL_ENDED_NO_TOKENS"
+                            )
+                            await self.broadcast_to_room(room_id, {
+                                "type": "CALL_ENDED_NO_TOKENS",
+                                "message": f"User {uid} ran out of tokens."
+                            })
+                            call_record.status = CallStatus.TERMINATED_NO_TOKENS
+                            db.commit()
+                            
+                            for conn in list(self.active_connections.get(room_id, [])):
+                                await conn["websocket"].close()
+                            return
 
-                            if user.token_balance > 0:
-                                updated = (
-                                    db.query(User)
-                                    .filter(
-                                        User.id == uid,
-                                        User.token_balance > 0,
-                                    )
-                                    .update(
-                                        {User.token_balance: User.token_balance - 1},
-                                        synchronize_session=False,
-                                    )
-                                )
-                                db.commit()
-                                if not updated:
-                                    db.refresh(user)
-                                    continue
-                                db.refresh(user)
+                        # 2. Deduct 10 tokens for the minute
+                        updated = (
+                            db.query(User)
+                            .filter(
+                                User.id == uid,
+                                User.token_balance > 0,
+                            )
+                            .update(
+                                {User.token_balance: User.token_balance - 10},
+                                synchronize_session=False,
+                            )
+                        )
+                        call_record.tokens_consumed += 10
+                        billed_anyone = True 
+                        
+                        db.commit()
+                        db.refresh(user)
 
-                                print(f"[BILLING] Deducted 1 token from user {uid}. Balance: {user.token_balance}")
-                                await self.send_to_user(room_id, user.id, {
-                                    "type": "BALANCE_UPDATE",
-                                    "current_balance": user.token_balance
-                                })
+                        print(f"[BILLING] Deducted 10 tokens from user {uid}. Balance: {user.token_balance}")
+                        
+                        # Send live balance update via WebSocket
+                        await self.send_to_user(room_id, user.id, {
+                            "type": "BALANCE_UPDATE",
+                            "current_balance": user.token_balance
+                        })
 
-                            if user.token_balance <= 0:
-                                await self.broadcast_to_room(room_id, {
-                                    "type": "CALL_ENDED_NO_TOKENS",
-                                    "message": f"User {uid} ran out of tokens."
-                                })
-                                call_record.status = CallStatus.TERMINATED_NO_TOKENS
-                                db.commit()
-                                
-                                for conn in list(self.active_connections.get(room_id, [])):
-                                    await conn["websocket"].close()
-                                return
-                    finally:
-                        db.close()
-            except asyncio.CancelledError:
-                print(f"[BILLING] Cancelled for room {room_id}")
-            except Exception as e:
-                print(f"[BILLING ERROR] {e}")
+                        # 3. Check if the *new* balance is low or zero after deduction
+                        if user.token_balance <= 0:
+                            create_notification(
+                                db=db,
+                                user_id=uid,
+                                sender_id=uid,
+                                 room_id=room_id,
+                                message="Your token balance has run out. The call has been terminated.",
+                                notification_type="CALL_ENDED_NO_TOKENS"
+                            )
+                            await self.broadcast_to_room(room_id, {
+                                "type": "CALL_ENDED_NO_TOKENS",
+                                "message": f"User {uid} ran out of tokens."
+                            })
+                            call_record.status = CallStatus.TERMINATED_NO_TOKENS
+                            db.commit()
+                            
+                            for conn in list(self.active_connections.get(room_id, [])):
+                                await conn["websocket"].close()
+                            return
 
+                        elif user.token_balance <= 10:
+                            create_notification(
+                                db=db,
+                                user_id=uid,
+                                sender_id=uid,
+                                room_id=room_id,
+                                message=f"Warning: Your token balance is running low ({user.token_balance} tokens left).",
+                                notification_type="LOW_TOKENS"
+                            )
 
+                    if billed_anyone:
+                        call_record.duration_seconds += 60
+                        db.commit()
+                finally:
+                    db.close()
+        except asyncio.CancelledError:
+            print(f"[BILLING] Cancelled for room {room_id}")
+        except Exception as e:
+            print(f"[BILLING ERROR] {e}")
 
     async def broadcast_to_room(self, room_id: str, message: dict):
         if room_id in self.active_connections:
