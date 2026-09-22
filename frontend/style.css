@@ -829,3 +829,64 @@ textarea#summaryDisplay {
         padding: 14px 20px;
     }
 }
+
+
+/* =========================================================
+   WHATSAPP STYLE CHAT & UNREAD COUNTER BADGES
+   ========================================================= */
+.message-bubble {
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    word-break: break-word;
+    position: relative;
+}
+
+.message-bubble.sent {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: #ffffff;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+
+.message-bubble.received {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+.message-meta {
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    opacity: 0.8;
+}
+
+.message-bubble.sent .message-meta {
+    justify-content: flex-end;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message-bubble.received .message-meta {
+    justify-content: flex-start;
+    color: #94a3b8;
+}
+
+.friend-card-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #f43f5e;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    box-shadow: 0 2px 8px rgba(244, 63, 94, 0.5);
+}

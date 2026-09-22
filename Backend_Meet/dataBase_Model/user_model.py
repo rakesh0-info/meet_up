@@ -31,6 +31,8 @@ class User(Base):
     secret_key=Column(String(200),nullable=True)
 
     # Relationships
+    sent_messages = relationship("Chat_M", foreign_keys="[Chat_M.sender_id]", back_populates="sender")
+    received_messages = relationship("Chat_M", foreign_keys="[Chat_M.receiver_id]", back_populates="receiver")
     subscriptions = relationship("Video_Call_Subscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship(
         "Notification", 

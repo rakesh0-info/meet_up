@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pypdf import PdfReader
+import pypdf
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -73,85 +74,106 @@ def chunk_text(
 
 
 def process_document_background(doc_id: int):
-
     db: Session = SessionLocal()
-
+    
     try:
-
-        doc = (
-            db.query(DocumentChat)
-            .filter(DocumentChat.id == doc_id)
-            .first()
-        )
-
+        doc = db.query(DocumentChat).filter(DocumentChat.id == doc_id).first()
         if not doc:
             return
 
-        # --------------------------------
-        # 1. Extract text
-        # --------------------------------
-
-        raw_text = extract_text_from_file(
-            doc.file_path
-        )
-
-        doc.extracted_text = raw_text
+        doc.status = "PROCESSING"
+        db.commit()
 
         # --------------------------------
-        # 2. Create chunks
+        # 1. Extract text based on file type
         # --------------------------------
+        all_chunks_with_metadata = []
+        global_chunk_index = 0
 
-        chunks = chunk_text(raw_text)
+        if doc.file_path.lower().endswith(".pdf"):
+            reader = pypdf.PdfReader(doc.file_path)
+            full_raw_text = ""
+            for page_num, page in enumerate(reader.pages, start=1):
+                page_text = page.extract_text() or ""
+                full_raw_text += f"\n--- Page {page_num} ---\n" + page_text
+                
+                page_chunks = chunk_text(page_text)
+                for chunk_text_item in page_chunks:
+                    formatted_content = f"[Page {page_num}]\n{chunk_text_item}"
+                    all_chunks_with_metadata.append({
+                        "content": formatted_content,
+                        "page_number": page_num,
+                        "chunk_index": global_chunk_index
+                    })
+                    global_chunk_index += 1
+            doc.extracted_text = full_raw_text
+        else:
+            # Handle .txt, .java, .py, etc.
+            with open(doc.file_path, "r", encoding="utf-8", errors="replace") as f:
+                full_raw_text = f.read()
+            
+            doc.extracted_text = full_raw_text
+            file_chunks = chunk_text(full_raw_text)
+            for chunk_text_item in file_chunks:
+                all_chunks_with_metadata.append({
+                    "content": chunk_text_item,
+                    "page_number": 1,  # Default page for text files
+                    "chunk_index": global_chunk_index
+                })
+                global_chunk_index += 1
+
+        db.commit()
+
+        if not all_chunks_with_metadata:
+            doc.status = "COMPLETED"
+            db.commit()
+            return
 
         # --------------------------------
-        # 3. Generate embeddings
+        # 2. Generate embeddings in batches (remains the same)
         # --------------------------------
-
-        for index, chunk in enumerate(chunks):
-
+        BATCH_SIZE = 25 
+        
+        for i in range(0, len(all_chunks_with_metadata), BATCH_SIZE):
+            batch_items = all_chunks_with_metadata[i : i + BATCH_SIZE]
+            batch_contents = [[item["content"]] for item in batch_items]
+            
             embedding_res = client.models.embed_content(
                 model="gemini-embedding-001",
-                contents=chunk,
+                contents=batch_contents,
                 config=types.EmbedContentConfig(
                     task_type="RETRIEVAL_DOCUMENT",
                     output_dimensionality=768,
                 ),
             )
 
-            embedding_vector = (
-                embedding_res.embeddings[0].values
-            )
+            for item, emb in zip(batch_items, embedding_res.embeddings):
+                chunk_obj = DocumentChunk(
+                    document_id=doc.id,
+                    chunk_index=item["chunk_index"],
+                    content=item["content"],
+                    page_number=item["page_number"],
+                    embedding=emb.values
+                )
+                db.add(chunk_obj)
 
-            # --------------------------------
-            # 4. Save chunk + embedding
-            # --------------------------------
+            db.commit()
 
-            chunk_obj = DocumentChunk(
-                document_id=doc.id,
-                chunk_index=index,
-                content=chunk,
-                embedding=embedding_vector
-            )
-
-            db.add(chunk_obj)
-
+        doc.status = "COMPLETED"
         db.commit()
-
-        print(
-            f"Document {doc_id} processed successfully. "
-            f"{len(chunks)} chunks created."
-        )
+        print(f"Document {doc_id} processed successfully. {len(all_chunks_with_metadata)} chunks created.")
 
     except Exception as e:
-
         db.rollback()
-
-        print(
-            f"Error processing document {doc_id}: {e}"
-        )
-
-        raise
+        print(f"Error processing document {doc_id}: {e}")
+        try:
+            failed_doc = db.query(DocumentChat).filter(DocumentChat.id == doc_id).first()
+            if failed_doc:
+                failed_doc.status = "FAILED"
+                failed_doc.error_message = str(e)
+                db.commit()
+        except Exception as db_err:
+            print(f"Failed to record error state for document {doc_id}: {db_err}")
 
     finally:
-
         db.close()

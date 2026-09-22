@@ -222,6 +222,15 @@ async function request(endpoint, method = 'GET', body = null) {
     return data;
 }
 
+
+async function markConversationAsSeen(senderId) {
+    try {
+        await request('/api/v1/chats/mark-seen', 'PATCH', { sender_id: senderId });
+    } catch (e) {
+        console.error("Failed to mark messages as seen:", e);
+    }
+}
+
 function switchAuthTab(tab) {
     document.getElementById('tab-login-btn').className = tab === 'login' ? 'active' : '';
     document.getElementById('tab-register-btn').className = tab === 'register' ? 'active' : '';
@@ -388,6 +397,7 @@ async function loadDashboard() {
     await fetchSubscriptions();
     startPlansRefresh();
     fetchNotifications();
+    initChatWebSocket();
     initNotificationWebSocket();
 }
 
@@ -410,6 +420,17 @@ function startPlansRefresh() {
         plansRefreshEventsBound = true;
     }
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        // Force show login view and do not initialize WebSockets
+        document.getElementById('dashboard-view').classList.add('hidden');
+        document.getElementById('auth-view').classList.remove('hidden');
+        return;
+    }
+    // Otherwise load dashboard and connect sockets...
+});
 
 async function loadAdminDashboard() {
     document.getElementById('admin-summary-section').classList.remove('hidden');
@@ -752,18 +773,29 @@ function renderFriends(friends) {
     if (!friendsGrid) return;
 
     if (!friends.length) {
-        friendsGrid.innerHTML = '<p class="empty-msg">No accepted friends yet.</p>';
+        friendsGrid.innerHTML = '<p class="empty-msg">No accepted friends yet. Add friends from the directory above!</p>';
         return;
     }
 
-    friendsGrid.innerHTML = friends.map(friend => `
-        <div class="item-card">
-            <h3>${escapeHtml(friend.name || friend.email)}</h3>
-            <p>${escapeHtml(friend.email || '')}</p>
-            <button class="btn-success" onclick="initiateCall(${friend.id})">Call Friend</button>
-        </div>
-    `).join('');
+    friendsGrid.innerHTML = friends.map(friend => {
+        const unreadCount = unreadCounts[friend.id] || 0;
+        return `
+            <div class="item-card friend-card relative" data-friend-id="${friend.id}">
+                ${unreadCount > 0 ? `<span class="friend-card-badge">${unreadCount}</span>` : ''}
+                <div>
+                    <h3>${escapeHtml(friend.name || friend.email)}</h3>
+                    <p>${escapeHtml(friend.email || '')}</p>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button class="flex-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 text-xs py-2 rounded-xl font-bold" onclick="openChat(${friend.id}, '${escapeHtml(friend.name || friend.email)}')">💬 Chat</button>
+                    <button class="btn-success text-xs py-2 px-3 rounded-xl" onclick="initiateCall(${friend.id})">Call</button>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
+
+
 
 function renderCompletedCalls(calls) {
     const callsList = document.getElementById('completed-calls-list');
@@ -885,6 +917,7 @@ function addRealtimeNotification(notification) {
     }
 }
 
+
 function updateNotificationUI(notifications) {
     const badge = document.getElementById('notif-badge');
     const container = document.getElementById('notif-list');
@@ -899,52 +932,171 @@ function updateNotificationUI(notifications) {
     badge.innerText = notifications.length;
 
     container.innerHTML = notifications.map(n => {
-        let senderId = n.sender_id || n.metadata?.sender_id || n.data?.sender_id;
-        let roomId = n.room_id || n.metadata?.room_id || n.data?.room_id || n.roomId;
-        const rawMessage = (n.message || '').toString();
-        const senderMarker = rawMessage.match(/\[sender_id:(\d+)\]/i);
-        if (!senderId && senderMarker) senderId = Number(senderMarker[1]);
-        const msg = rawMessage.replace(/\s*\[sender_id:\d+\]/i, '');
+        let senderId =
+            n.sender_id ||
+            n.metadata?.sender_id ||
+            n.data?.sender_id;
 
-        if (!roomId) {
-            const uuidMatch = msg.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-            if (uuidMatch) roomId = uuidMatch[0];
+        let roomId =
+            n.room_id ||
+            n.metadata?.room_id ||
+            n.data?.room_id ||
+            n.roomId;
+
+        const rawMessage = (n.message || '').toString();
+
+        // Extract sender ID from the message if necessary
+        const senderMarker = rawMessage.match(
+            /\[sender_id:(\d+)\]/i
+        );
+
+        if (!senderId && senderMarker) {
+            senderId = Number(senderMarker[1]);
         }
 
-        if (roomId) lastRoomId = roomId;
+        const msg = rawMessage.replace(
+            /\s*\[sender_id:\d+\]/i,
+            ''
+        );
 
-        const isIncomingCall = n.notification_type === 'INCOMING_CALL' || (msg.toLowerCase().includes('incoming') && msg.toLowerCase().includes('call'));
-        const isAcceptedCall = n.notification_type === 'CALL_ACCEPTED';
-        const isRejectedCall = n.notification_type === 'CALL_REJECTED';
-        const isSummaryNotif = n.notification_type === 'CALL_SUMMARY_READY' || msg.toLowerCase().includes('summary');
-        const isFriendReq = n.notification_type === 'FRIEND_REQUEST' || (msg.toLowerCase().includes('friend') && msg.toLowerCase().includes('request'));
+        // Extract room UUID from the message if necessary
+        if (!roomId) {
+            const uuidMatch = msg.match(
+                /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+            );
 
-         return `
-            <div class="notif-item">
+            if (uuidMatch) {
+                roomId = uuidMatch[0];
+            }
+        }
+
+        if (roomId) {
+            lastRoomId = roomId;
+        }
+
+        const isIncomingCall =
+            n.notification_type === 'INCOMING_CALL' ||
+            (
+                msg.toLowerCase().includes('incoming') &&
+                msg.toLowerCase().includes('call')
+            );
+
+        const isAcceptedCall =
+            n.notification_type === 'CALL_ACCEPTED';
+
+        const isRejectedCall =
+            n.notification_type === 'CALL_REJECTED';
+
+        const isSummaryNotif =
+            n.notification_type === 'CALL_SUMMARY_READY' ||
+            msg.toLowerCase().includes('summary');
+
+        const isFriendReq =
+            n.notification_type === 'FRIEND_REQUEST' ||
+            (
+                msg.toLowerCase().includes('friend') &&
+                msg.toLowerCase().includes('request')
+            );
+
+        return `
+            <div
+                class="notif-item cursor-pointer hover:bg-slate-800/50 p-2 rounded transition-all"
+                onclick="markNotificationAsRead(${n.id}, event)"
+            >
                 <p>${msg}</p>
-                ${(isFriendReq && Number.isInteger(Number(senderId))) ? `
-                    <div class="notif-actions">
-                        <button class="btn-success" onclick="respondRequest(${senderId}, 'yes',${n.id})">Accept</button>
-                        <button class="btn-danger" onclick="respondRequest(${senderId}, 'no',${n.id})">Reject</button>
+
+                ${
+                    isFriendReq &&
+                    Number.isInteger(Number(senderId))
+                        ? `
+                    <div
+                        class="notif-actions"
+                        onclick="event.stopPropagation()"
+                    >
+                        <button
+                            class="btn-success"
+                            onclick="respondRequest(${senderId}, 'yes', ${n.id})"
+                        >
+                            Accept
+                        </button>
+
+                        <button
+                            class="btn-danger"
+                            onclick="respondRequest(${senderId}, 'no', ${n.id})"
+                        >
+                            Reject
+                        </button>
                     </div>
-                ` : ''}
-                ${(isIncomingCall) ? `
-                    <div class="notif-actions">
-                        <button class="btn-success" onclick="respondToCall('${roomId || ''}', true,${n.id})">Accept Call</button>
-                        <button class="btn-danger" onclick="respondToCall('${roomId || ''}', false,${n.id})">Reject</button>
+                    `
+                        : ''
+                }
+
+                ${
+                    isIncomingCall
+                        ? `
+                    <div
+                        class="notif-actions"
+                        onclick="event.stopPropagation()"
+                    >
+                        <button
+                            class="btn-success"
+                            onclick="respondToCall('${roomId || ''}', true, ${n.id})"
+                        >
+                            Accept Call
+                        </button>
+
+                        <button
+                            class="btn-danger"
+                            onclick="respondToCall('${roomId || ''}', false, ${n.id})"
+                        >
+                            Reject
+                        </button>
                     </div>
-                ` : ''}
-                ${(isAcceptedCall && roomId) ? `
-                    <div class="notif-actions">
-                        <button class="btn-success" onclick="joinAcceptedCall('${roomId}', ${n.id})">Join Call</button>
+                    `
+                        : ''
+                }
+
+                ${
+                    isAcceptedCall && roomId
+                        ? `
+                    <div
+                        class="notif-actions"
+                        onclick="event.stopPropagation()"
+                    >
+                        <button
+                            class="btn-success"
+                            onclick="joinAcceptedCall('${roomId}', ${n.id})"
+                        >
+                            Join Call
+                        </button>
                     </div>
-                ` : ''}
-                ${(isRejectedCall) ? '<p>Call was rejected.</p>' : ''}
-                ${(isSummaryNotif) ? `
-                    <div class="notif-actions">
-                        <button class="btn-success" onclick="viewSummaryFromNotif('${roomId || ''}',${n.id})">View Summary</button>
+                    `
+                        : ''
+                }
+
+                ${
+                    isRejectedCall
+                        ? '<p>Call was rejected.</p>'
+                        : ''
+                }
+
+                ${
+                    isSummaryNotif
+                        ? `
+                    <div
+                        class="notif-actions"
+                        onclick="event.stopPropagation()"
+                    >
+                        <button
+                            class="btn-success"
+                            onclick="viewSummaryFromNotif('${roomId || ''}', ${n.id})"
+                        >
+                            View Summary
+                        </button>
                     </div>
-                ` : ''}
+                    `
+                        : ''
+                }
             </div>
         `;
     }).join('');
@@ -1265,6 +1417,21 @@ function connectCallWebSocket(roomId) {
             const data = JSON.parse(event.data);
             const msgType = (data.type || '').toUpperCase();
 
+
+            // Add inside your active WebSocket message listener switch/if block:
+if (msgType === "MESSAGE_SEEN") {
+    // data.reader_id has read the messages sent to data.sender_id
+    console.log(`Messages seen by user ID: ${data.reader_id}`);
+    
+    // Update your DOM elements representing message read receipts here
+    // e.g., change tick marks from single/gray to double/blue
+    document.querySelectorAll(`.message-item[data-sender="${data.sender_id}"] .read-receipt`)
+        .forEach(el => {
+            el.innerHTML = "✓✓ Seen";
+            el.classList.add("text-cyan-400");
+        });
+}
+
             if (msgType === "CALL_ENDED_NO_TOKENS") {
                 alert(data.message || "Your token balance has run out. The call has been terminated.");
                 leaveVideoCallSession();
@@ -1408,16 +1575,310 @@ async function askDocumentQuestion(documentId, question) {
     }
 }
 
-function handleLogout() {
-    leaveVideoCallSession();
+async function markNotificationAsRead(notificationId, event) {
+    if (event) event.stopPropagation();
+    try {
+        await request(`/api/v1/notifications/${notificationId}/read`, 'PATCH');
+        // Filter out the read notification from local state and re-render
+        unreadNotifications = unreadNotifications.filter(n => n.id !== notificationId);
+        updateNotificationUI(unreadNotifications);
+    } catch (e) {
+        console.error("Failed to mark notification as read:", e);
+    }
+}
+async function handleLogout() {
+    try {
+        // Leave active video call
+        if (typeof leaveVideoCallSession === 'function') {
+            await leaveVideoCallSession();
+        }
+    } catch (error) {
+        console.warn('Error leaving video call during logout:', error);
+    }
+
+    // Stop subscription/plan refresh timer
     if (plansRefreshTimer) {
         clearInterval(plansRefreshTimer);
         plansRefreshTimer = null;
     }
+
+    // Close chat WebSocket
+    try {
+        if (typeof chatWs !== 'undefined' && chatWs) {
+            if (
+                chatWs.readyState === WebSocket.OPEN ||
+                chatWs.readyState === WebSocket.CONNECTING
+            ) {
+                chatWs.close();
+            }
+        }
+    } catch (error) {
+        console.warn('Error closing chat WebSocket:', error);
+    }
+
+    // Close notification WebSocket
+    try {
+        if (typeof notifWs !== 'undefined' && notifWs) {
+            if (
+                notifWs.readyState === WebSocket.OPEN ||
+                notifWs.readyState === WebSocket.CONNECTING
+            ) {
+                notifWs.close();
+            }
+        }
+    } catch (error) {
+        console.warn('Error closing notification WebSocket:', error);
+    }
+
+    // Reset authentication state
     accessToken = '';
     localStorage.removeItem('access_token');
+
     currentEmail = '';
     currentUserId = null;
-    if (notifWs) notifWs.close();
-    location.reload();
+
+    // Reset call-related state
+    if (typeof lastRoomId !== 'undefined') {
+        lastRoomId = null;
+    }
+
+    // Get screens/elements
+    const dashboardScreen = document.getElementById('dashboard-screen');
+    const authScreen = document.getElementById('auth-screen');
+    const appHeader = document.getElementById('app-header');
+    const otpScreen = document.getElementById('otp-screen');
+    const chatModal = document.getElementById('chat-modal');
+
+    // Hide dashboard
+    if (dashboardScreen) {
+        dashboardScreen.classList.add('hidden');
+    }
+
+    // Hide application header
+    if (appHeader) {
+        appHeader.classList.add('hidden');
+    }
+
+    // Hide OTP screen
+    if (otpScreen) {
+        otpScreen.classList.add('hidden');
+    }
+
+    // Close chat modal
+    if (chatModal) {
+        chatModal.classList.add('hidden');
+    }
+
+    // Show authentication screen
+    if (authScreen) {
+        authScreen.classList.remove('hidden');
+    }
+
+    // Reset notification UI
+    const notifBadge = document.getElementById('notif-badge');
+    const notifList = document.getElementById('notif-list');
+
+    if (notifBadge) {
+        notifBadge.classList.add('hidden');
+        notifBadge.innerText = '0';
+    }
+
+    if (notifList) {
+        notifList.innerHTML =
+            '<p class="empty-msg">No unread notifications</p>';
+    }
+
+    console.log('User logged out successfully');
 }
+// ===================================================================
+// WHATSAPP CHAT STATE & FUNCTIONS
+// ===================================================================
+let activeChatPartnerId = null;
+let chatWs = null;
+let unreadCounts = {}; // Stores unread counts per friend ID
+
+function initChatWebSocket() {
+    if (!currentUserId) return;
+    if (chatWs) chatWs.close();
+
+    const wsUrl = BASE_URL.replace(/^http/, 'ws');
+    chatWs = new WebSocket(
+        `${wsUrl}/api/v1/chats/ws/${currentUserId}?token=${encodeURIComponent(accessToken)}`
+    );
+
+    chatWs.onopen = () => {
+        console.log("Chat WebSocket connected.");
+    };
+
+   chatWs.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            const msgType = (data.type || data.event || '').toUpperCase();
+
+            // Handle incoming real-time private message (supports both flat and nested payloads)
+            if (msgType === "PRIVATE_MESSAGE" || msgType === "NEW_PRIVATE_MESSAGE" || data.sender_id || data.chat) {
+                const chatData = data.chat || data;
+                const senderId = Number(chatData.sender_id);
+                const messageText = chatData.message;
+                const sentAt = chatData.sent_at || new Date().toISOString();
+                
+                // If the chat modal is currently open with this specific sender, append the message directly
+                if (activeChatPartnerId === senderId) {
+                    appendChatMessage({
+                        sender_id: senderId,
+                        receiver_id: currentUserId,
+                        message: messageText,
+                        sent_at: sentAt,
+                        is_read: true
+                    });
+                    markConversationAsSeen(senderId);
+                } else {
+                    // Otherwise, increment unread counter badge for the friend card
+                    unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+                    updateFriendBadgesUI();
+                }
+
+                // If a notification object was included, push it to real-time notifications UI instantly
+                if (data.notification) {
+                    addRealtimeNotification(data.notification);
+                }
+            }
+
+            // Handle Read Receipts
+            if (msgType === "MESSAGE_SEEN" || data.reader_id) {
+                const targetSender = data.sender_id || currentUserId;
+                document.querySelectorAll(`.message-item[data-sender="${targetSender}"] .read-receipt`)
+                    .forEach(el => {
+                        el.innerHTML = "✓✓ Seen";
+                        el.classList.add("text-cyan-300");
+                    });
+            }
+        } catch (err) {
+            console.warn("Chat WebSocket message warning:", err);
+        }
+    };
+
+    chatWs.onerror = (err) => console.error("Chat WebSocket error:", err);
+    chatWs.onclose = () => {
+        setTimeout(initChatWebSocket, 3000);
+    };
+}
+
+async function openChat(friendId, friendName) {
+    activeChatPartnerId = friendId;
+    unreadCounts[friendId] = 0; // Clear unread counter badge
+    updateFriendBadgesUI();
+
+    document.getElementById('chat-header-name').innerText = friendName;
+    document.getElementById('chat-modal').classList.remove('hidden');
+
+    const messagesBox = document.getElementById('chat-messages-box');
+    messagesBox.innerHTML = '<p class="text-center text-slate-500 text-xs my-auto">Loading chat history...</p>';
+
+    try {
+        const historyData = await request(`/api/v1/chats/history?id=${friendId}`, 'GET');
+        messagesBox.innerHTML = '';
+
+        if (!historyData.messages || historyData.messages.length === 0) {
+            messagesBox.innerHTML = '<p class="text-center text-slate-500 text-xs my-auto">No messages yet. Say hello! 👋</p>';
+            return;
+        }
+
+        historyData.messages.forEach(msg => appendChatMessage(msg));
+        
+        // Mark conversation as seen upon opening
+        await markConversationAsSeen(friendId);
+    } catch (e) {
+        console.error("Failed to load chat history:", e);
+        messagesBox.innerHTML = '<p class="text-center text-rose-400 text-xs my-auto">Failed to load chat history.</p>';
+    }
+}
+
+function closeChatModal() {
+    document.getElementById('chat-modal').classList.add('hidden');
+    activeChatPartnerId = null;
+    loadUserDashboard(); // Refresh friends list & badges
+}
+
+function appendChatMessage(msg) {
+    const messagesBox = document.getElementById('chat-messages-box');
+    const emptyMsg = messagesBox.querySelector('.empty-msg');
+    if (emptyMsg) emptyMsg.remove();
+
+    const isSent = Number(msg.sender_id) === Number(currentUserId);
+    const timeStr = msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
+
+    const div = document.createElement('div');
+    div.className = `flex flex-col message-item ${isSent ? 'items-end' : 'items-start'}`;
+    div.setAttribute('data-sender', msg.sender_id);
+
+    div.innerHTML = `
+        <div class="message-bubble ${isSent ? 'sent' : 'received'}">
+            ${escapeHtml(msg.message)}
+            <div class="message-meta">
+                <span>${timeStr}</span>
+                ${isSent ? `<span class="read-receipt">${msg.is_read ? '✓✓ Seen' : '✓ Sent'}</span>` : ''}
+            </div>
+        </div>
+    `;
+    messagesBox.appendChild(div);
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+}
+
+async function handleSendChatMessage(event) {
+    event.preventDefault();
+    const input = document.getElementById('chat-message-input');
+    const message = input.value.trim();
+
+    if (!message || !activeChatPartnerId) return;
+
+    input.value = '';
+
+    try {
+        await request('/api/v1/chats/chat/send', 'POST', {
+            receiver_id: activeChatPartnerId,
+            message: message
+        });
+
+        // Optimistically append sent message
+        appendChatMessage({
+            sender_id: currentUserId,
+            receiver_id: activeChatPartnerId,
+            message: message,
+            sent_at: new Date().toISOString(),
+            is_read: false
+        });
+    } catch (e) {
+        console.error("Failed to send message:", e);
+    }
+}
+
+function updateFriendBadgesUI() {
+    document.querySelectorAll('.friend-card').forEach(card => {
+        const friendId = card.getAttribute('data-friend-id');
+        const count = unreadCounts[friendId] || 0;
+        let badge = card.querySelector('.friend-card-badge');
+
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'friend-card-badge';
+                card.appendChild(badge);
+            }
+            badge.innerText = count;
+        } else if (badge) {
+            badge.remove();
+        }
+    });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        // Force show login view and do not initialize WebSockets
+        document.getElementById('dashboard-view').classList.add('hidden');
+        document.getElementById('auth-view').classList.remove('hidden');
+        return;
+    }
+    // Otherwise load dashboard and connect sockets...
+});

@@ -26,6 +26,7 @@ class DocumentChunk(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     document_id = Column(Integer, ForeignKey("document_chats.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
+    page_number = Column(Integer, nullable=True)
     content = Column(Text, nullable=False)
     embedding = Column(Vector(768), nullable=True)  # text-embedding-004 output dimension
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
