@@ -70,10 +70,10 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],  # In production, you can replace "*" with your frontend URL if needed, but "*" allows all local testing ports
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"], 
+    allow_methods=["*"],  # Allows GET, POST, PUT, DELETE, OPTIONS, etc.
+    allow_headers=["*"],  # Allows all headers (Authorization, Content-Type, etc.)
 )
 
 app.include_router(admin_router)
