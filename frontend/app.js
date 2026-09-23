@@ -833,7 +833,7 @@ async function fetchSubscriptions() {
             <div class="item-card">
                 <h3>${p.name}</h3>
                 <p><strong>Tokens:</strong> ${p.token_amount}</p>
-                <p><strong>Price:</strong> ${p.amount_to_pay} ${p.currency.toUpperCase()}</p>
+                <p><strong>Price:</strong> $ ${p.amount_to_pay}</p>
                 ${currentUserRole.toLowerCase() === 'user' ? `<button onclick="subscribePlan(${p.id})">Buy Tokens</button>` : ''}
             </div>
         `).join('');
