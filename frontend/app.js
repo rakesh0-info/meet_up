@@ -1,4 +1,5 @@
 const BASE_URL = 'http://127.0.0.1:8000';
+// const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';

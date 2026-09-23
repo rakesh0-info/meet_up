@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
 from enums.roleEnum import Role
+from dataBase_Model.chatModel import Chat_M
 
 class User(Base):
     __tablename__ = "users"
@@ -31,12 +32,12 @@ class User(Base):
     secret_key=Column(String(200),nullable=True)
 
     # Relationships
-    sent_messages = relationship("Chat_M", foreign_keys="[Chat_M.sender_id]", back_populates="sender")
-    received_messages = relationship("Chat_M", foreign_keys="[Chat_M.receiver_id]", back_populates="receiver")
+    sent_messages = relationship("Chat_M", foreign_keys=[Chat_M.sender_id], back_populates="sender")
+    received_messages = relationship("Chat_M", foreign_keys=[Chat_M.receiver_id], back_populates="receiver")
     subscriptions = relationship("Video_Call_Subscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship(
         "Notification", 
-        foreign_keys="[Notification.user_id]", 
+        foreign_keys="Notification.user_id", 
         back_populates="user",
         cascade="all, delete-orphan"
     )

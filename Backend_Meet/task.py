@@ -36,51 +36,9 @@ def publish_notification_sync(user_id: int, notification_data: dict):
         print(f"Failed to publish notification to Redis from Celery: {exc}")
 
 
-@celery_app.task(name="process_document_upload")
-def process_document_upload(document_id: int):
-    db: Session = SessionLocal()
-    try:
-        doc = db.query(DocumentChat).filter(DocumentChat.id == document_id).first()
-        if not doc:
-            print(f"Document with ID {document_id} not found.")
-            return
 
-        print(f"Processing Document ID {doc.id}: {doc.filename}")
-
-        # -------------------------------------------------------------
-        # 2. Notify User that document is ready for Q&A / RAG
-        # -------------------------------------------------------------
-        notification = create_notification(
-            db=db,
-            user_id=doc.user_id,
-            message=f"Your document '{doc.filename}' has been processed. You can now ask questions about it!",
-            notification_type="DOCUMENT_PROCESSED"
-        )
-        db.commit()
-        
-        # Broadcast real-time event to Redis
-        publish_notification_sync(doc.user_id, {
-            "id": notification.id,
-            "user_id": notification.user_id,
-            "message": notification.message,
-            "notification_type": notification.notification_type,
-            "room_id": notification.room_id,
-            "is_read": notification.is_read,
-            "created_at": notification.created_at.isoformat()
-        })
-        
-        print(f"Document ID {doc.id} successfully processed!")
-
-    except Exception as e:
-        db.rollback()
-        print(f"Document processing failed: {e}")
-        raise
-    finally:
-        db.close()
-
-
-@celery_app.task(name="daily_subscription_cleanup")
-def daily_subscription_cleanup():
+@celery_app.task(name="daily_subscription_cheackup")
+def daily_subscription_cheackup():
     db: Session = SessionLocal()
     try:
         expired_subscriptions = (
@@ -100,11 +58,9 @@ def daily_subscription_cleanup():
                 db=db,
                 user_id=sub.user_id,
                 message="Your active subscription status has expired because your token balance is 0. Please top up to continue.",
-                notification_type="TOKEN_EXPIRED"
+                notification_type="SYSTEM_NOTIFICATION_TOKEN_EXPIRED"
             )
             
-            db.commit()
-
             # Broadcast real-time event to Redis
             publish_notification_sync(sub.user_id, {
                 "id": notification.id,
@@ -116,6 +72,8 @@ def daily_subscription_cleanup():
                 "created_at": notification.created_at.isoformat()
             })
 
+        # Commit everything all at once at the end
+        db.commit()
         print(f"Daily subscription cleanup complete. Processed {len(expired_subscriptions)} expired subscriptions.")
 
     except Exception as e:

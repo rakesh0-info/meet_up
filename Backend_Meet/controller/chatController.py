@@ -36,8 +36,11 @@ async def websocket_endpoint(
 ):
     current_user = await get_websocket_user(websocket, token, db)
     if not current_user or current_user.id != user_id:
-        await websocket.close(code=http_status.WS_1008_POLICY_VIOLATION)
-        return
+        try:
+            await websocket.close(code=http_status.WS_1008_POLICY_VIOLATION)
+        except RuntimeError:
+    # Connection was already closed or never fully accepted
+            pass
 
     # Pass the DB session down to handle unread notifications queue
     await manager.connect(user_id, websocket, db=db)

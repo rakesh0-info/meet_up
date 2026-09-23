@@ -10,7 +10,7 @@ from rediss.redis_cofig import REDIS_URL
 CHANNEL = "notifications"
 
 
-def create_notification(db, user_id, sender_id, message, notification_type, room_id=None):
+def create_notification(db, user_id,  message, notification_type, room_id=None,sender_id=None):
     notification = Notification(
         user_id=int(user_id),
         sender_id=sender_id,

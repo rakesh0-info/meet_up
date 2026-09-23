@@ -74,16 +74,7 @@ async def get_unread_notifications(
     
     response = []
     for notif in unread:
-        sender_id = None
-        if notif.notification_type == "FRIEND_REQUEST":
-            freq = db.query(FriendRequest).filter(
-                FriendRequest.receiver_id == current_user.id,
-                FriendRequest.request_status == re_status.SENT,
-            ).order_by(FriendRequest.send_at.desc()).first()
-            
-            if freq:
-                sender_id = freq.sender_id
-
+    
         response.append({
             "id": notif.id,
             "user_id": notif.user_id,

@@ -6,6 +6,7 @@ import os
 import re
 import time
 from typing import List, Optional
+from enums.upload_status import up_status
 
 
 from dotenv import load_dotenv
@@ -485,15 +486,12 @@ async def send_friend_request(
         )
 
    
-    existing_request = db.query(FriendRequest).filter(
-        or_( 
-    and_(FriendRequest.sender_id == current_user.id, 
-         FriendRequest.receiver_id == receiver_id), 
-    and_(FriendRequest.sender_id == receiver_id, 
-         FriendRequest.receiver_id == current_user.id) 
-) 
-
-  ).first()
+    existing_request = db.query(FriendRequest).filter( 
+    or_( 
+        and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id), 
+        and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id) 
+    ) 
+).first() 
 
     if existing_request:
         raise HTTPException(
@@ -646,7 +644,9 @@ def upload_document(
     doc_record = DocumentChat(
         user_id=current_user.id,
         filename=original_filename,
-        file_path=file_path
+        file_path=file_path,
+        upload_status=up_status.NOT_PROCESS
+        
     )
     db.add(doc_record)
     db.commit()
@@ -739,7 +739,7 @@ async def ask_document_question(
     """
 
     response = client.models.generate_content(
-        model="gemini-3.6-flash",  
+        model="gemini-3.5-flash-lite",  
         contents=prompt
     )
 
@@ -919,5 +919,31 @@ async def reset_pass(payload: reset_pass, db: Session = Depends(get_db)):
     return "password successfully change"
 
 
+@router.get("/documents")
+async def get_your_doc(
+        cur: User = Depends(require_roles(Role.USER)),
+        db:Session=Depends(get_db),
+):
 
-##
+    user=db.query(User).filter(User.id==cur.id).first()
+
+    if not user:
+        raise HTTPException(400, detail="User not Found")
+
+
+    res=[]
+
+    exist=db.query(DocumentChat).filter(DocumentChat.user_id==user.id,DocumentChat.upload_status==up_status.SUCESSFULL).all()
+
+    for doc in exist:
+        res.append({
+            "document_name": doc.filename,       
+            "document_path": doc.file_path,  
+            "uploaded_at": doc.created_at   
+        })
+
+    return res
+
+   
+
+

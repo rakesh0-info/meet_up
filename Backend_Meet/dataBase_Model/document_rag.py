@@ -1,9 +1,11 @@
 # dataBase_Model/document_rag.py
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from enum import Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey,Enum
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 from database import Base
+from enums.upload_status import up_status
 
 class DocumentChat(Base):
     __tablename__ = "document_chats"
@@ -14,6 +16,11 @@ class DocumentChat(Base):
     file_path = Column(String(500), nullable=False)
     extracted_text = Column(Text, nullable=True)
     summary = Column(Text, nullable=True)
+    upload_status=Column(
+        Enum(up_status, name="up_status", schema="Meet_up", inherit_schema=True),
+        default=up_status.NOT_PROCESS,
+        nullable=False
+    )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="document_chats")

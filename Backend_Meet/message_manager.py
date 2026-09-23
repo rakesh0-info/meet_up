@@ -150,7 +150,7 @@ class msg_connectionManager:
                 db.commit()
                 return True
             except Exception:
-                await self.disconnect(recipient_id)
+                self.disconnect(recipient_id)
                 return False
 
         return False

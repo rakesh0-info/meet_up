@@ -115,9 +115,9 @@ class CallManager:
                             create_notification(
                                 db=db,
                                 user_id=uid,
-                                sender_id=uid,
+                               
                                 message="Your token balance has run out. The call has been terminated.",
-                                notification_type="CALL_ENDED_NO_TOKENS"
+                                notification_type="SYSTEM_NOTIFICATION_CALL_ENDED_NO_TOKENS"
                             )
                             await self.broadcast_to_room(room_id, {
                                 "type": "CALL_ENDED_NO_TOKENS",
@@ -161,10 +161,10 @@ class CallManager:
                             create_notification(
                                 db=db,
                                 user_id=uid,
-                                sender_id=uid,
+                                
                                  room_id=room_id,
                                 message="Your token balance has run out. The call has been terminated.",
-                                notification_type="CALL_ENDED_NO_TOKENS"
+                                notification_type="SYSTEM_NOTIFICATION_CALL_ENDED_NO_TOKENS"
                             )
                             await self.broadcast_to_room(room_id, {
                                 "type": "CALL_ENDED_NO_TOKENS",
@@ -181,10 +181,9 @@ class CallManager:
                             create_notification(
                                 db=db,
                                 user_id=uid,
-                                sender_id=uid,
                                 room_id=room_id,
                                 message=f"Warning: Your token balance is running low ({user.token_balance} tokens left).",
-                                notification_type="LOW_TOKENS"
+                                notification_type="SYSTEM_NOTIFICATION_LOW_TOKENS"
                             )
 
                     if billed_anyone:
