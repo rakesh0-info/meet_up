@@ -25,8 +25,9 @@ async def send_mail(receiver_mail: str, otp: str):
 
     try:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            await server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            await server.send_message(msg)
+             server.login(SENDER_EMAIL, SENDER_PASSWORD)
+             server.send_message(msg)
+             print("DEBUG: Email sent successfully!")
     except Exception as e:
         print("Error sending mail: ", e)
 
@@ -42,8 +43,9 @@ async def send_key(receiver_mail: str, k: str):
 
     try:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            await server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            await server.send_message(msg)
+             server.login(SENDER_EMAIL, SENDER_PASSWORD)
+             server.send_message(msg)
+             print("DEBUG: Email sent successfully!")
     except Exception as e:
         print("Error sending mail: ", e)
 
