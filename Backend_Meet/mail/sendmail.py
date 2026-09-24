@@ -14,7 +14,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SMTP_PASSWORD")  
 
-def send_mail(receiver_mail: str, otp: str):
+async def send_mail(receiver_mail: str, otp: str):
     msg = MIMEMultipart()
     msg["From"] = SENDER_EMAIL
     msg["To"] = receiver_mail
@@ -25,13 +25,13 @@ def send_mail(receiver_mail: str, otp: str):
 
     try:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
+            await server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            await server.send_message(msg)
     except Exception as e:
         print("Error sending mail: ", e)
 
 
-def send_key(receiver_mail: str, k: str):
+async def send_key(receiver_mail: str, k: str):
     msg = MIMEMultipart()
     msg["From"] = SENDER_EMAIL
     msg["To"] = receiver_mail
@@ -42,8 +42,8 @@ def send_key(receiver_mail: str, k: str):
 
     try:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
+            await server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            await server.send_message(msg)
     except Exception as e:
         print("Error sending mail: ", e)
 
