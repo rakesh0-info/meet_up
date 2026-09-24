@@ -196,6 +196,8 @@ class CallManager:
         except Exception as e:
             print(f"[BILLING ERROR] {e}")
 
+
+
     async def broadcast_to_room(self, room_id: str, message: dict):
         if room_id in self.active_connections:
             for connection in self.active_connections[room_id]:

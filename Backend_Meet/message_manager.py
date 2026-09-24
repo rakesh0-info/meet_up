@@ -47,6 +47,21 @@ class msg_connectionManager:
         if user_id in self.active_connections:
             del self.active_connections[user_id]
 
+    async def send_typing_status(self, sender_id: int, recipient_id: int, is_typing: bool):
+        """Relays typing status to the recipient if they are online."""
+        if recipient_id in self.active_connections:
+            websocket = self.active_connections[recipient_id]
+            event_type = "USER_TYPING" if is_typing else "USER_STOPPED_TYPING"
+            try:
+                await websocket.send_json({
+                    "type": event_type,   # Added for frontends checking .type
+                    "event": event_type,  # Retained for frontends checking .event
+                    "sender_id": sender_id
+                })
+            except Exception:
+                self.disconnect(recipient_id)
+
+                
 
     async def send_personal_message(self, message: dict, user_id: int):
         """Sends a JSON websocket payload directly to a specific user if they are online."""
@@ -154,3 +169,5 @@ class msg_connectionManager:
                 return False
 
         return False
+
+    

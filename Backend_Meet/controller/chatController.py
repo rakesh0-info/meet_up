@@ -6,6 +6,7 @@ from fastapi import (
     WebSocketDisconnect,
     status as http_status,
 )
+# from rich.pretty import data
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
@@ -47,7 +48,26 @@ async def websocket_endpoint(
 
     try:
         while True:
-            await websocket.receive_text()
+                data = await websocket.receive_json()
+                event_type = data.get("type")
+
+                if event_type == "TYPING":
+                    recipient_id = data.get("recipient_id")
+                    if recipient_id:
+                        await manager.send_typing_status(
+                            sender_id=user_id, 
+                            recipient_id=int(recipient_id), 
+                            is_typing=True
+                        )
+                elif event_type == "STOP_TYPING":
+                    recipient_id = data.get("recipient_id")
+                    if recipient_id:
+                        await manager.send_typing_status(
+                            sender_id=user_id, 
+                            recipient_id=int(recipient_id), 
+                            is_typing=False
+                        )
+
     except WebSocketDisconnect:
         manager.disconnect(user_id)
     except Exception:

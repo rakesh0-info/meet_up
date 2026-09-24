@@ -100,7 +100,7 @@ header {
     border: 1px solid rgba(245, 158, 11, 0.3);
     color: #fbbf24;
     padding: 8px 18px;
-    border-radius: 9999px;
+    border-radius: 16px;
     font-weight: 600;
     font-size: 0.875rem;
     display: flex;
@@ -122,7 +122,7 @@ header {
     border: 1px solid rgba(244, 63, 94, 0.25);
     color: #fb7185;
     padding: 8px 16px;
-    border-radius: 12px;
+    border-radius: 16px;
     cursor: pointer;
     font-weight: 600;
     font-size: 0.85rem;
@@ -146,11 +146,11 @@ header {
     font-size: 1.15rem;
     cursor: pointer;
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -180,51 +180,21 @@ header {
 .dropdown {
     position: absolute;
     right: 0;
-    top: 52px;
+    top: 56px;
     width: 340px;
     background: rgba(11, 15, 25, 0.95);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--card-border);
-    border-radius: 20px;
+    border-radius: 24px;
     box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
     z-index: 100;
     padding: 16px;
 }
 
-.dropdown h3 {
-    font-size: 0.9rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    padding-bottom: 8px;
-    color: var(--text-color);
-}
-
-.notif-item {
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 0.85rem;
-    background: rgba(255, 255, 255, 0.025);
-    border-radius: 14px;
-    margin-bottom: 8px;
-    transition: all 0.2s ease;
-}
-
-.notif-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(56, 189, 248, 0.2);
-}
-
-.notif-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-}
-
 /* Base Cards & Containers */
 .container {
-    max-width: 1240px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 0 24px;
 }
@@ -235,7 +205,7 @@ header {
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--card-border);
     padding: 36px;
-    border-radius: 24px;
+    border-radius: 28px;
     max-width: 440px;
     margin: 0 auto;
     box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
@@ -256,7 +226,7 @@ header {
     backdrop-filter: blur(16px);
     border: 1px solid var(--card-border);
     padding: 24px;
-    border-radius: 20px;
+    border-radius: 24px;
     line-height: 1.6;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
@@ -303,17 +273,17 @@ form {
     gap: 16px;
 }
 
-input, textarea {
+input, textarea, select {
     background: rgba(3, 7, 18, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: #ffffff;
-    padding: 12px 18px;
-    border-radius: 14px;
+    padding: 14px 18px;
+    border-radius: 16px;
     font-size: 0.95rem;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
     outline: none;
     border-color: var(--accent-color);
     background: rgba(3, 7, 18, 0.85);
@@ -327,7 +297,7 @@ button {
     border: none;
     padding: 12px 20px;
     font-weight: 700;
-    border-radius: 14px;
+    border-radius: 16px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 14px rgba(56, 189, 248, 0.2);
@@ -346,26 +316,6 @@ button:active {
     transform: translateY(0);
 }
 
-.btn-danger {
-    background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.25) !important;
-}
-
-.btn-danger:hover {
-    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.4) !important;
-}
-
-.btn-success {
-    background: linear-gradient(135deg, #10b981 0%, #047857 100%) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25) !important;
-}
-
-.btn-success:hover {
-    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4) !important;
-}
-
 /* Dashboard Content Grid */
 .dashboard {
     display: flex;
@@ -376,19 +326,19 @@ button:active {
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
+    gap: 24px;
     margin-top: 16px;
 }
 
-/* Interactive Item Card (users-grid, friends-grid, completed-calls-list) */
+/* Interactive Item Card */
 .item-card {
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--card-border);
-    border-radius: 20px;
-    padding: 22px;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 24px;
+    padding: 24px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -396,45 +346,14 @@ button:active {
     overflow: hidden;
 }
 
-.item-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.4), transparent);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
 .item-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(56, 189, 248, 0.3);
-    box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.08);
-}
-
-.item-card:hover::before {
-    opacity: 1;
-}
-
-.item-card h3 {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #f8fafc;
-    margin-bottom: 6px;
-}
-
-.item-card p {
-    color: var(--text-dim);
-    font-size: 0.85rem;
-    line-height: 1.5;
-    margin-bottom: 8px;
+    transform: translateY(-4px);
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.1);
 }
 
 /* =========================================================
    ENTERPRISE SUBSCRIPTION / TOKEN TOP-UP CARDS
-   High-end Dark Glassmorphic Modern Styling with Rupee (₹)
    ========================================================= */
 #plans-grid {
     display: grid;
@@ -455,40 +374,15 @@ button:active {
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-radius: 28px !important;
-    padding: 32px 26px 28px !important;
+    border-radius: 32px !important;
+    padding: 36px 28px 30px !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
     position: relative !important;
     overflow: hidden !important;
-    box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+    box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.7) !important;
     transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-/* Card Glow Ambience */
-.enterprise-plan-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--plan-theme), var(--plan-theme-dark));
-    opacity: 0.8;
-}
-
-.enterprise-plan-card::after {
-    content: "";
-    position: absolute;
-    width: 220px;
-    height: 220px;
-    top: -100px;
-    right: -80px;
-    border-radius: 50%;
-    background: var(--plan-theme-glow);
-    filter: blur(50px);
-    pointer-events: none;
 }
 
 .enterprise-plan-card:hover {
@@ -497,347 +391,48 @@ button:active {
     box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px var(--plan-theme-glow) !important;
 }
 
-/* Theme Variations for Starter, Pro, Enterprise */
-.enterprise-plan-card.plan-tier-1 {
-    --plan-theme: #38bdf8;
-    --plan-theme-dark: #0284c7;
-    --plan-theme-glow: rgba(56, 189, 248, 0.16);
-    --plan-border: rgba(56, 189, 248, 0.4);
-}
-
-.enterprise-plan-card.plan-tier-2 {
-    --plan-theme: #a855f7;
-    --plan-theme-dark: #7c3aed;
-    --plan-theme-glow: rgba(168, 85, 247, 0.2);
-    --plan-border: rgba(168, 85, 247, 0.5);
-    border: 1px solid rgba(168, 85, 247, 0.35) !important;
-}
-
-.enterprise-plan-card.plan-tier-3 {
-    --plan-theme: #f59e0b;
-    --plan-theme-dark: #d97706;
-    --plan-theme-glow: rgba(245, 158, 11, 0.18);
-    --plan-border: rgba(245, 158, 11, 0.45);
-}
-
-/* Popular / Featured Badge for Mid Tier */
-.enterprise-popular-badge {
-    position: absolute;
-    top: 16px;
-    right: 20px;
-    background: linear-gradient(135deg, #a855f7, #6366f1);
-    color: #ffffff;
-    font-size: 0.65rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
-    z-index: 10;
-}
-
-.enterprise-plan-header {
-    position: relative;
-    z-index: 2;
-    margin-bottom: 20px;
-}
-
-.enterprise-plan-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 14px;
-    border-radius: 9999px;
-    background: var(--plan-theme-glow);
-    border: 1px solid var(--plan-border);
-    color: var(--plan-theme);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 12px;
-}
-
-.enterprise-plan-name {
-    font-size: 1.35rem;
-    font-weight: 800;
-    color: #f8fafc;
-    margin-bottom: 6px;
-    letter-spacing: -0.02em;
-}
-
-.enterprise-plan-desc {
-    font-size: 0.825rem;
-    color: #94a3b8;
-    line-height: 1.45;
-}
-
-/* Price Section formatted with Rupee Symbol */
-.enterprise-price-container {
-    position: relative;
-    z-index: 2;
-    padding: 18px 0;
-    margin-bottom: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.enterprise-price-row {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-}
-
-.enterprise-currency-symbol {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #f8fafc;
-    line-height: 1;
-}
-
-.enterprise-price-val {
-    font-size: 2.75rem;
-    font-weight: 800;
-    color: #ffffff;
-    line-height: 1;
-    letter-spacing: -0.03em;
-    font-family: 'Outfit', sans-serif;
-}
-
-.enterprise-price-period {
-    font-size: 0.85rem;
-    color: #94a3b8;
-    font-weight: 500;
-    margin-left: 2px;
-}
-
-.enterprise-token-callout {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.enterprise-token-callout .token-icon {
-    font-size: 1.1rem;
-}
-
-.enterprise-token-callout .token-val {
-    font-weight: 700;
-    color: #f8fafc;
-    font-size: 0.95rem;
-}
-
-.enterprise-token-callout .token-label {
-    font-size: 0.8rem;
-    color: #94a3b8;
-}
-
-/* Feature Checklist */
-.enterprise-features-list {
-    position: relative;
-    z-index: 2;
-    list-style: none;
-    margin: 0 0 24px 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    flex-grow: 1;
-}
-
-.enterprise-feature-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: 0.85rem;
-    color: #cbd5e1;
-    line-height: 1.4;
-}
-
-.enterprise-feature-check {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--plan-theme-glow);
-    border: 1px solid var(--plan-border);
-    color: var(--plan-theme);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    font-weight: 900;
-    margin-top: 1px;
-}
-
-/* CTA Buy Button */
 .enterprise-buy-btn {
-    position: relative;
-    z-index: 2;
     width: 100% !important;
     padding: 14px 20px !important;
-    border-radius: 16px !important;
+    border-radius: 18px !important;
     background: linear-gradient(135deg, var(--plan-theme) 0%, var(--plan-theme-dark) 100%) !important;
     color: #030712 !important;
     font-size: 0.95rem !important;
     font-weight: 800 !important;
-    letter-spacing: -0.01em !important;
-    box-shadow: 0 6px 20px var(--plan-theme-glow) !important;
     cursor: pointer !important;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .enterprise-buy-btn:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 10px 25px var(--plan-theme-glow) !important;
     filter: brightness(1.08) !important;
 }
 
-.enterprise-buy-btn:active {
-    transform: translateY(0) !important;
+/* Glow & Micro-animations */
+@keyframes neon-pulse {
+    0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.25); }
+    50% { box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }
 }
 
-/* Video Call Styles */
-.alert-banner {
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    color: #fef3c7;
-    padding: 14px 18px;
-    border-radius: 16px;
-    font-size: 0.9rem;
-    margin-top: 12px;
+.glow-active {
+    animation: neon-pulse 3s infinite ease-in-out;
 }
 
-.video-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    position: relative;
-    background: #020617;
-    border-radius: 20px;
-    overflow: hidden;
-    margin-top: 20px;
-    min-height: 280px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 12px;
+.interactive-card {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-video {
-    width: 100%;
-    height: 280px;
-    object-fit: cover;
-    background-color: #0b0f19;
-    border-radius: 14px;
+.interactive-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 25px rgba(56, 189, 248, 0.15);
 }
 
-.caption-overlay {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(3, 7, 18, 0.92);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(56, 189, 248, 0.4);
-    padding: 10px 22px;
-    border-radius: 16px;
-    color: #f8fafc;
-    font-size: 0.95rem;
-    text-align: center;
-    max-width: 85%;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.6);
-    z-index: 20;
-}
-
-#captionSpeaker {
-    color: var(--accent-color);
-    font-weight: bold;
-}
-
-.speech-controls {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-}
-
-.speech-controls input {
-    flex: 1;
-}
-
-.transcript-summary-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.transcript-box {
-    height: 180px;
-    overflow-y: auto;
-    background-color: rgba(3, 7, 18, 0.7);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 14px;
-    font-size: 0.875rem;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.transcript-entry {
-    padding: 8px 14px;
-    border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.transcript-entry .speaker {
-    color: var(--accent-color);
-    font-weight: 700;
-}
-
-textarea#summaryDisplay {
-    width: 100%;
-    height: 130px;
-    resize: none;
-    border-radius: 14px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-    #plans-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 680px) {
-    #plans-grid {
-        grid-template-columns: 1fr;
-    }
-    .video-grid {
-        grid-template-columns: 1fr;
-    }
-    .transcript-summary-grid {
-        grid-template-columns: 1fr;
-    }
-    header {
-        padding: 14px 20px;
-    }
-}
-
-
-/* =========================================================
-   WHATSAPP STYLE CHAT & UNREAD COUNTER BADGES
-   ========================================================= */
+/* Chat & Video Call Styles */
 .message-bubble {
     max-width: 75%;
-    padding: 10px 14px;
-    border-radius: 16px;
+    padding: 12px 16px;
+    border-radius: 20px;
     font-size: 0.875rem;
     line-height: 1.4;
     word-break: break-word;
@@ -859,34 +454,27 @@ textarea#summaryDisplay {
     border-bottom-left-radius: 4px;
 }
 
-.message-meta {
-    font-size: 0.65rem;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 4px;
-    opacity: 0.8;
-}
-
-.message-bubble.sent .message-meta {
-    justify-content: flex-end;
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.message-bubble.received .message-meta {
-    justify-content: flex-start;
-    color: #94a3b8;
-}
-
 .friend-card-badge {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 14px;
+    right: 14px;
     background: #f43f5e;
     color: white;
     font-size: 0.7rem;
     font-weight: 700;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 9999px;
     box-shadow: 0 2px 8px rgba(244, 63, 94, 0.5);
+}
+
+@media (max-width: 1024px) {
+    #plans-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    #plans-grid {
+        grid-template-columns: 1fr;
+    }
 }

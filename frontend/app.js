@@ -1,5 +1,5 @@
-// const BASE_URL = 'http://127.0.0.1:8000';
-const BASE_URL = 'https://meet-up-0kqq.onrender.com';
+const BASE_URL = 'http://127.0.0.1:8000';
+// const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';
@@ -422,16 +422,7 @@ function startPlansRefresh() {
     }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-        // Force show login view and do not initialize WebSockets
-        document.getElementById('dashboard-view').classList.add('hidden');
-        document.getElementById('auth-view').classList.remove('hidden');
-        return;
-    }
-    // Otherwise load dashboard and connect sockets...
-});
+
 
 async function loadAdminDashboard() {
     document.getElementById('admin-summary-section').classList.remove('hidden');
@@ -733,10 +724,12 @@ async function loadUserDashboard() {
     try {
         const dashboard = await request('/api/v1/user/user_dashboard', 'GET');
         const friends = await request('/api/v1/user/get_all_friend', 'GET');
+        
 
         if (dashboard.user_info) {
             currentUserId = dashboard.user_info.id;
             currentEmail = dashboard.user_info.email;
+            currentUserRole = dashboard.user_info.role || currentUserRole;
             updateWalletDisplay(dashboard.user_info.token_balance || 0);
         }
 
@@ -745,15 +738,27 @@ async function loadUserDashboard() {
 
         const usersGrid = document.getElementById('users-grid');
         const availableUsers = dashboard.available_users || [];
-        usersGrid.innerHTML = availableUsers.map(u => `
-            <div class="item-card">
-                <h3>${escapeHtml(u.name || u.email)}</h3>
-                <div style="display: flex; gap: 8px; margin-top: 5px;">
-                    <button onclick="sendFriendRequest(${u.id})">Add Friend</button>
-                    <button class="btn-success" onclick="initiateCall(${u.id})">Call User</button>
+
+        usersGrid.innerHTML = availableUsers.map(u => {
+            // Check if the card being mapped is the admin user
+            const isAdminCard = u.name === "admin" && u.email === "admin@gmail.com";
+
+            return `
+                <div class="item-card">
+                    <h3>${escapeHtml(u.name || u.email)}</h3>
+                    <div style="display: flex; gap: 8px; margin-top: 5px;">
+                        <button 
+                            ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-2 px-3 rounded-xl text-xs"' : 'py-2 px-3 rounded-xl text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'} 
+                            onclick="sendFriendRequest(${u.id})">
+                            Add Friend
+                        </button>
+                         <button 
+                          ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-2 px-3 rounded-xl text-xs"' : 'py-2 px-3 rounded-xl text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'} 
+                         class="btn-success text-xs py-2 px-3 rounded-xl" onclick="initiateCall(${u.id})">Call User</button>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
     } catch (e) {
         console.error("Error loading user dashboard", e);
@@ -1716,6 +1721,17 @@ function initChatWebSocket() {
             const data = JSON.parse(event.data);
             const msgType = (data.type || data.event || '').toUpperCase();
 
+           if (msgType === "USER_TYPING" || msgType === "USER_STOPPED_TYPING" || data.event === "USER_TYPING" || data.event === "USER_STOPPED_TYPING") {
+    const senderId = Number(data.sender_id);
+    // Force both to numbers to avoid type mismatch issues (string vs int)
+    if (Number(activeChatPartnerId) === senderId) {
+        showChatTypingIndicator(
+            msgType === "USER_TYPING" || data.event === "USER_TYPING"
+        );
+    }
+    return;
+}
+
             // Handle incoming real-time private message (supports both flat and nested payloads)
             if (msgType === "PRIVATE_MESSAGE" || msgType === "NEW_PRIVATE_MESSAGE" || data.sender_id || data.chat) {
                 const chatData = data.chat || data;
@@ -1765,6 +1781,33 @@ function initChatWebSocket() {
     };
 }
 
+
+let chatTypingTimeout = null;
+
+function setupChatTypingListener() {
+    const input = document.getElementById('chat-message-input');
+    if (!input || input.dataset.typingBound) return;
+    input.dataset.typingBound = "true";
+
+    // Instantly trigger typing when clicking/focusing the input box
+    input.addEventListener('focus', () => {
+        if (!activeChatPartnerId || !chatWs || chatWs.readyState !== WebSocket.OPEN) return;
+        chatWs.send(JSON.stringify({
+            type: "TYPING",
+            recipient_id: activeChatPartnerId
+        }));
+    });
+
+    // Instantly stop typing when clicking outside (blurring the input box)
+    input.addEventListener('blur', () => {
+        if (!activeChatPartnerId || !chatWs || chatWs.readyState !== WebSocket.OPEN) return;
+        chatWs.send(JSON.stringify({
+            type: "STOP_TYPING",
+            recipient_id: activeChatPartnerId
+        }));
+    });
+}
+
 async function openChat(friendId, friendName) {
     activeChatPartnerId = friendId;
     unreadCounts[friendId] = 0; // Clear unread counter badge
@@ -1772,6 +1815,8 @@ async function openChat(friendId, friendName) {
 
     document.getElementById('chat-header-name').innerText = friendName;
     document.getElementById('chat-modal').classList.remove('hidden');
+
+    setupChatTypingListener();
 
     const messagesBox = document.getElementById('chat-messages-box');
     messagesBox.innerHTML = '<p class="text-center text-slate-500 text-xs my-auto">Loading chat history...</p>';
@@ -1792,6 +1837,31 @@ async function openChat(friendId, friendName) {
     } catch (e) {
         console.error("Failed to load chat history:", e);
         messagesBox.innerHTML = '<p class="text-center text-rose-400 text-xs my-auto">Failed to load chat history.</p>';
+    }
+}
+
+function showChatTypingIndicator(show) {
+    const messagesBox = document.getElementById('chat-messages-box');
+    if (!messagesBox) return;
+    let typingEl = document.getElementById('chat-typing-indicator');
+
+    if (show) {
+        if (!typingEl) {
+            typingEl = document.createElement('div');
+            typingEl.id = 'chat-typing-indicator';
+            typingEl.className = 'flex items-center gap-2 my-2';
+            typingEl.innerHTML = `
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-slate-400 flex items-center gap-1.5 shadow-md">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"></span>
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.2s]"></span>
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.4s]"></span>
+                </div>
+            `;
+            messagesBox.appendChild(typingEl);
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
+    } else {
+        if (typingEl) typingEl.remove();
     }
 }
 
@@ -1883,3 +1953,151 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     // Otherwise load dashboard and connect sockets...
 });
+
+let selectedDocumentId = null;
+
+async function openDocChatModal() {
+    document.getElementById('doc-chat-modal').classList.remove('hidden');
+    await loadUserDocumentsDropdown();
+}
+
+function closeDocChatModal() {
+    document.getElementById('doc-chat-modal').classList.add('hidden');
+}
+
+async function loadUserDocumentsDropdown() {
+    try {
+        const docs = await request('/api/v1/user/documents', 'GET');
+        const select = document.getElementById('doc-select-dropdown');
+        
+        select.innerHTML = '<option value="">-- Select Previous Document --</option>' + 
+            docs.map(d => `<option value="${d.document_id}">${escapeHtml(d.document_name)} (${new Date(d.uploaded_at).toLocaleDateString()})</option>`).join('');
+    } catch (e) {
+        console.error("Failed to load documents:", e);
+    }
+}
+
+async function onDocumentSelected(docId) {
+    selectedDocumentId = docId;
+    const input = document.getElementById('doc-question-input');
+    const sendBtn = document.getElementById('doc-send-btn');
+    const activeLabel = document.getElementById('doc-chat-active-name');
+
+    if (!docId) {
+        input.disabled = true;
+        sendBtn.disabled = true;
+        activeLabel.innerText = "Select a document to start";
+        return;
+    }
+
+    input.disabled = false;
+    sendBtn.disabled = false;
+    activeLabel.innerText = "Document ready for questions";
+
+    const select = document.getElementById('doc-select-dropdown');
+    const selectedOption = select.options[select.selectedIndex];
+    if (selectedOption) {
+        activeLabel.innerText = `Active: ${selectedOption.text}`;
+    }
+}
+
+async function handleModalDocUpload() {
+    const fileInput = document.getElementById('modal-doc-upload-input');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert("Please choose a file to upload.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const headers = {};
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+        const response = await fetch(`${BASE_URL}/api/v1/user/documents/upload`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.detail || 'Upload failed');
+
+        alert("Document uploaded successfully! Processing in background.");
+        fileInput.value = '';
+        await loadUserDocumentsDropdown();
+    } catch (e) {
+        console.error("Upload error:", e);
+        alert(e.message);
+    }
+}
+
+async function handleSendDocQuestion(event) {
+    event.preventDefault();
+    if (!selectedDocumentId) {
+        alert("Please select a document first.");
+        return;
+    }
+
+    const input = document.getElementById('doc-question-input');
+    const question = input.value.trim();
+    if (!question) return;
+
+    input.value = '';
+    const box = document.getElementById('doc-chat-messages-box');
+    const emptyMsg = box.querySelector('.empty-msg');
+    if (emptyMsg) emptyMsg.remove();
+
+    // Append user message
+    box.innerHTML += `
+        <div class="flex justify-end">
+            <div class="bg-cyan-500 text-slate-950 rounded-2xl px-4 py-2.5 max-w-[80%] text-sm font-medium shadow-md">
+                ${escapeHtml(question)}
+            </div>
+        </div>
+    `;
+
+    // Append 3-dot typing loader
+    const loaderId = 'loader-' + Date.now();
+    box.innerHTML += `
+        <div id="${loaderId}" class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 text-xs font-bold">AI</div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-slate-400 flex items-center gap-1.5 shadow-md">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"></span>
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.2s]"></span>
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.4s]"></span>
+            </div>
+        </div>
+    `;
+    box.scrollTop = box.scrollHeight;
+
+    try {
+        const res = await request(`/api/v1/user/documents/${selectedDocumentId}/ask?question=${encodeURIComponent(question)}`, 'POST');
+        
+        // Remove loader
+        document.getElementById(loaderId).remove();
+
+        // Format structured response
+        const formattedAnswer = escapeHtml(res.answer || "No response generated.")
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        box.innerHTML += `
+            <div class="flex items-start gap-2">
+                <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 text-xs font-bold shrink-0">AI</div>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-slate-200 text-sm shadow-md space-y-2 max-w-[85%]">
+                    <div class="leading-relaxed">${formattedAnswer}</div>
+                </div>
+            </div>
+        `;
+        box.scrollTop = box.scrollHeight;
+    } catch (e) {
+        document.getElementById(loaderId).remove();
+        box.innerHTML += `
+            <div class="text-rose-400 text-xs p-2">Failed to get response from document.</div>
+        `;
+        box.scrollTop = box.scrollHeight;
+    }
+}

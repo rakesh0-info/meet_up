@@ -123,7 +123,7 @@ async def send_call_request(
             detail="You can only call accepted friends."
         )
 
-    if current_user.token_balance < 10:
+    if current_user.token_balance <=10:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="Insufficient token balance."
@@ -279,6 +279,9 @@ async def call_websocket(
 
             elif msg_type == "PING":
                 await websocket.send_json({"type": "PONG"})
+            else:
+                # Catch-all for unknown message types so they aren't silently dropped
+                print(f"[CALL WS WARNING] Unhandled message type: '{msg_type}' in room {room_id}")
 
     except WebSocketDisconnect:
         call_manager.disconnect(room_id, websocket)

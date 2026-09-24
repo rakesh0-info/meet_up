@@ -937,6 +937,7 @@ async def get_your_doc(
 
     for doc in exist:
         res.append({
+            "document_id": doc.id,
             "document_name": doc.filename,       
             "document_path": doc.file_path,  
             "uploaded_at": doc.created_at   

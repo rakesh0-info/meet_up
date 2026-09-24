@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         daily_subscription_cheackup.delay,  
         "cron", 
         # hour=17, 
-        minute="*", 
+        minute=10, 
         timezone="Asia/Kolkata"
     )
     scheduler.start()
