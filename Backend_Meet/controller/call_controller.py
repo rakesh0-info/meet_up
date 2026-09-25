@@ -182,7 +182,7 @@ async def respond_to_call(
         raise HTTPException(status_code=409, detail="This call can no longer be answered.")
 
     if payload.accepted:
-        if current_user.token_balance <= 10:
+        if current_user.token_balance < 10:
             raise HTTPException(status_code=400, detail="Insufficient tokens to join call.")
 
         call_record.status = CallStatus.ACTIVE
