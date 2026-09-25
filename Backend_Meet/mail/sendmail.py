@@ -1,38 +1,59 @@
 import os
 import asyncio
-import resend
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+MAILJET_API_KEY = os.getenv("MAILJET_API_KEY")
+MAILJET_SECRET_KEY = os.getenv("MAILJET_SECRET_KEY")
+MAILJET_SENDER_EMAIL = os.getenv("MAILJET_SENDER_EMAIL")
 
-if not RESEND_API_KEY:
-    raise RuntimeError("RESEND_API_KEY is not configured.")
-
-resend.api_key = RESEND_API_KEY
+if not MAILJET_API_KEY or not MAILJET_SECRET_KEY:
+    raise RuntimeError("MAILJET_API_KEY or MAILJET_SECRET_KEY is not configured.")
 
 
 def _send_email_sync(receiver_mail: str, subject: str, body: str):
-    """Synchronous helper for Resend API call to run safely in a worker thread."""
+    """Synchronous helper to send email via Mailjet HTTP API safely in a background thread."""
+    url = "https://api.mailjet.com/v3.1/send"
+    
+    payload = {
+        "Messages": [
+            {
+                "From": {
+                    "Email": MAILJET_SENDER_EMAIL,
+                    "Name": "Phoenix Support"
+                },
+                "To": [
+                    {
+                        "Email": receiver_mail,
+                        "Name": "User"
+                    }
+                ],
+                "Subject": subject,
+                "TextPart": body
+            }
+        ]
+    }
+
     try:
-        print(f"[EMAIL] Sending email | FROM: {RESEND_FROM_EMAIL} | TO: {receiver_mail}")
-
-        params = {
-            "from": RESEND_FROM_EMAIL,
-            "to": [receiver_mail],
-            "subject": subject,
-            "text": body,
-        }
-
-        response = resend.Emails.send(params)
-        print(f"[EMAIL] Successfully sent to {receiver_mail}")
-        print(f"[EMAIL] Resend response: {response}")
-        return response
+        print(f"[MAILJET] Sending email | FROM: {MAILJET_SENDER_EMAIL} | TO: {receiver_mail}")
+        
+        # Mailjet uses HTTP Basic Authentication (API Key as username, Secret Key as password)
+        response = requests.post(
+            url,
+            json=payload,
+            auth=(MAILJET_API_KEY, MAILJET_SECRET_KEY)
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Mailjet API Error [{response.status_code}]: {response.text}")
+            
+        print(f"[MAILJET] Successfully sent email to {receiver_mail}!")
+        return response.json()
 
     except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send email to {receiver_mail}: {e}")
+        print(f"[MAILJET ERROR] Failed to send email to {receiver_mail}: {e}")
         raise
 
 
@@ -50,7 +71,6 @@ If you did not request this OTP, please ignore this email.
 Regards,
 Phoenix
 """
-    # Run the synchronous resend call in a background thread safely
     return await asyncio.to_thread(_send_email_sync, receiver_mail, "Your Verification OTP", body)
 
 
