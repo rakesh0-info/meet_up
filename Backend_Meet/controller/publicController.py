@@ -279,7 +279,7 @@ async def register(
     db.refresh(new_user)
 
     print(f"DEBUG: Calling send_mail directly for {clean_email}")
-    send_mail(clean_email, otp)
+    await send_mail(clean_email, otp)
     return {"message": "Registration successful. OTP sent to your email."}
 
 
@@ -889,8 +889,8 @@ async def forgetpass(email: str, backg: BackgroundTasks, db: Session = Depends(g
     db.refresh(user)
     
     print(f"DEBUG: Calling send_mail directly for {email}")
-    send_mail(email, otp)
-    send_key(email,key)
+    await send_mail(email, otp)
+    await send_key(email,key)
 
     return "otp & key send to your mail for reset password"
 
