@@ -35,6 +35,7 @@ from dataBase_Model.video_call_subscription import Video_Call_Subscription
 from enums.call_status import CallStatus
 from enums.plan_status import status as PlanStatus
 from enums.roleEnum import Role
+from dataBase_Model.document_rag import DocumentMessage
 
 from database import get_db
 from jwts.jwt_config import ALGORITHM, SECRET_KEY, create_access_token, create_refresh_token
@@ -669,8 +670,10 @@ async def ask_document_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER))
 ):
+    # FIXED: Check against the actual DocumentChat model (from document_rag.py) 
+    # to verify the file/document exists and belongs to the current user.
     document = (
-        db.query(DocumentChat)
+        db.query(DocumentChat) # Use whatever you named your main document metadata model
         .filter(
             DocumentChat.id == document_id,
             DocumentChat.user_id == current_user.id,
@@ -681,22 +684,21 @@ async def ask_document_question(
         raise HTTPException(status_code=404, detail="Document not found.")
 
     matched_chunks = []
-
     
+    # 1. Check if user specified a page number in the question
     page_numbers = [int(p) for p in re.findall(r'\b(?:page\s*(?:no\.?)?\s*)?(\d+)\b', question.lower())]
     
     if page_numbers:
-      
         matched_chunks = (
             db.query(DocumentChunk)
             .filter(
-                DocumentChunk.document_id == document.id,
+                DocumentChunk.document_id == document_id,
                 DocumentChunk.page_number.in_(page_numbers)
             )
             .all()
         )
-
-   
+    
+    # 2. If no page numbers found, fallback to vector similarity search
     if not matched_chunks:
         query_embedding_res = client.models.embed_content(
             model="gemini-embedding-001",
@@ -710,7 +712,7 @@ async def ask_document_question(
 
         matched_chunks = (
             db.query(DocumentChunk)
-            .filter(DocumentChunk.document_id == document.id)
+            .filter(DocumentChunk.document_id == document_id)
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(4)
             .all()
@@ -724,31 +726,65 @@ async def ask_document_question(
 
     context_text = "\n\n".join(c.content for c in matched_chunks)
 
+    # 3. Fetch recent chat history (e.g., last 4 turns) from your Chat log model
+    recent_history = (
+        db.query(DocumentMessage) # Assuming you renamed your chat log model to DocumentMessage
+        .filter(
+            DocumentMessage.document_id == document_id,
+            DocumentMessage.user_id == current_user.id
+        )
+        .order_by(DocumentMessage.ask_at.desc())
+        .limit(4)
+        .all()
+    )
+    # Reverse to chronological order (oldest to newest)
+    recent_history.reverse()
+
+    history_text = "\n".join(
+        f"User: {h.ask_question}\nAI: {h.ai_ans}" for h in recent_history
+    )
+
+    # 4. Construct prompt including both conversation history and document context
     prompt = f"""
-    You are a helpful document assistant.
-    Answer the user's question ONLY using the information provided in the context below.
-    Keep your answer clear, structured, and direct.
+You are a helpful document assistant.
+Answer the user's question using the provided document context and previous conversation history if it's a follow-up question.
+Keep your answer clear, structured, and direct.
 
-    Context:
-    {context_text}
+Previous Conversation:
+{history_text if history_text else "None"}
 
-    Question:
-    {question}
+Document Context:
+{context_text}
 
-    If the answer is not available in the context, respond exactly:
-    "Information is not available in the uploaded document."
-    """
+Question:
+{question}
+
+If the answer is not available in the context or history, respond exactly:
+"Information is not available in the uploaded document."
+"""
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",  
+        model="gemini-2.5-flash",  
         contents=prompt
     )
+
+    # 5. Save the new interaction to the chat log model
+    new_chat = DocumentMessage(
+        document_id=document_id,
+        user_id=current_user.id,
+        ask_question=question,
+        ai_ans=response.text,
+        ask_at=datetime.utcnow()
+    )
+    db.add(new_chat)
+    db.commit()
 
     return {
         "question": question,
         "retrieved_context": [c.content for c in matched_chunks],
         "answer": response.text
     }
+
 
 
 # 
@@ -947,6 +983,44 @@ async def get_your_doc(
 
     return res
 
-   
 
-
+@router.get("/documents/{document_id}/history", response_model=list[dict])
+async def get_document_chat_history(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.USER))
+):
+    """Retrieve all past Q&A history for a specific document and user."""
+    
+ 
+    document = (
+        db.query(DocumentChat) 
+        .filter(
+            DocumentChat.id == document_id,
+            DocumentChat.user_id == current_user.id
+        )
+        .first()
+    )
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    # Fetch all chats ordered chronologically from the message log model
+    chats = (
+        db.query(DocumentMessage)
+        .filter(
+            DocumentMessage.document_id == document_id,
+            DocumentMessage.user_id == current_user.id
+        )
+        .order_by(DocumentMessage.ask_at.asc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": chat.id,
+            "question": chat.ask_question,
+            "answer": chat.ai_ans,
+            "asked_at": chat.ask_at
+        }
+        for chat in chats
+    ]

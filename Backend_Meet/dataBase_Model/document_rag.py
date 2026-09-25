@@ -7,6 +7,8 @@ from pgvector.sqlalchemy import Vector
 from database import Base
 from enums.upload_status import up_status
 
+from dataBase_Model.user_model import User
+
 class DocumentChat(Base):
     __tablename__ = "document_chats"
 
@@ -39,3 +41,18 @@ class DocumentChunk(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     document = relationship("DocumentChat", back_populates="chunks")
+
+
+class DocumentMessage(Base):  
+    __tablename__ = "document_messages"  
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(Integer, ForeignKey("document_chats.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # Fixed typo: CASECADE -> CASCADE
+    ask_question = Column(Text, nullable=False)
+    ai_ans = Column(Text, nullable=False)
+    ask_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+   
+    document = relationship("DocumentChat", backref="messages")
+    user = relationship("User", backref="document_messages")
