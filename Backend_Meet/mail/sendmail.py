@@ -1,5 +1,4 @@
 import os
-import asyncio
 import requests
 from dotenv import load_dotenv
 
@@ -13,8 +12,8 @@ if not MAILJET_API_KEY or not MAILJET_SECRET_KEY:
     raise RuntimeError("MAILJET_API_KEY or MAILJET_SECRET_KEY is not configured.")
 
 
-def _send_email_sync(receiver_mail: str, subject: str, body: str):
-    """Synchronous helper to send email via Mailjet HTTP API safely in a background thread."""
+def send_mail(receiver_mail: str, otp: str):
+    """Synchronous function safe for FastAPI BackgroundTasks."""
     url = "https://api.mailjet.com/v3.1/send"
     
     payload = {
@@ -30,62 +29,66 @@ def _send_email_sync(receiver_mail: str, subject: str, body: str):
                         "Name": "User"
                     }
                 ],
-                "Subject": subject,
-                "TextPart": body
+                "Subject": "Your Verification OTP",
+                "TextPart": f"Hello,\n\nYour OTP is:\n\n{otp}\n\nThis OTP will expire in 5 minutes.\n\nRegards,\nPhoenix"
             }
         ]
     }
 
     try:
         print(f"[MAILJET] Sending email | FROM: {MAILJET_SENDER_EMAIL} | TO: {receiver_mail}")
-        
-        # Mailjet uses HTTP Basic Authentication (API Key as username, Secret Key as password)
         response = requests.post(
             url,
             json=payload,
-            auth=(MAILJET_API_KEY, MAILJET_SECRET_KEY)
+            auth=(MAILJET_API_KEY, MAILJET_SECRET_KEY),
+            timeout=10
         )
         
         if response.status_code != 200:
-            raise Exception(f"Mailjet API Error [{response.status_code}]: {response.text}")
+            print(f"[MAILJET ERROR] API Error [{response.status_code}]: {response.text}")
+        else:
+            print(f"[MAILJET] Successfully sent email to {receiver_mail}!")
             
-        print(f"[MAILJET] Successfully sent email to {receiver_mail}!")
         return response.json()
 
     except Exception as e:
         print(f"[MAILJET ERROR] Failed to send email to {receiver_mail}: {e}")
-        raise
 
 
-async def send_mail(receiver_mail: str, otp: str):
-    body = f"""Hello,
+def send_key(receiver_mail: str, key: str):
+    """Synchronous function safe for FastAPI BackgroundTasks."""
+    url = "https://api.mailjet.com/v3.1/send"
+    
+    payload = {
+        "Messages": [
+            {
+                "From": {
+                    "Email": MAILJET_SENDER_EMAIL,
+                    "Name": "Phoenix Support"
+                },
+                "To": [
+                    {
+                        "Email": receiver_mail,
+                        "Name": "User"
+                    }
+                ],
+                "Subject": "Your Password Reset Key",
+                "TextPart": f"Hello,\n\nYour password reset key is:\n\n{key}\n\nPlease use this key to reset your password.\n\nRegards,\nPhoenix"
+            }
+        ]
+    }
 
-Your OTP is:
-
-{otp}
-
-This OTP will expire in 5 minutes.
-
-If you did not request this OTP, please ignore this email.
-
-Regards,
-Phoenix
-"""
-    return await asyncio.to_thread(_send_email_sync, receiver_mail, "Your Verification OTP", body)
-
-
-async def send_key(receiver_mail: str, key: str):
-    body = f"""Hello,
-
-Your password reset key is:
-
-{key}
-
-Please use this key to reset your password.
-
-If you did not request a password reset, please ignore this email.
-
-Regards,
-Phoenix
-"""
-    return await asyncio.to_thread(_send_email_sync, receiver_mail, "Your Password Reset Key", body)
+    try:
+        print(f"[MAILJET] Sending password key | TO: {receiver_mail}")
+        response = requests.post(
+            url,
+            json=payload,
+            auth=(MAILJET_API_KEY, MAILJET_SECRET_KEY),
+            timeout=10
+        )
+        if response.status_code != 200:
+            print(f"[MAILJET ERROR] API Error [{response.status_code}]: {response.text}")
+        else:
+            print(f"[MAILJET] Successfully sent password key to {receiver_mail}!")
+    except Exception as e:
+        print(f"[MAILJET ERROR] Failed to send key: {e}")
