@@ -1982,22 +1982,69 @@ async function onDocumentSelected(docId) {
     const input = document.getElementById('doc-question-input');
     const sendBtn = document.getElementById('doc-send-btn');
     const activeLabel = document.getElementById('doc-chat-active-name');
+    const box = document.getElementById('doc-chat-messages-box');
 
     if (!docId) {
         input.disabled = true;
         sendBtn.disabled = true;
         activeLabel.innerText = "Select a document to start";
+        if (box) {
+            box.innerHTML = '<p class="empty-msg text-center text-slate-500 text-xs my-auto">Select a document to view history and ask questions.</p>';
+        }
         return;
     }
 
     input.disabled = false;
     sendBtn.disabled = false;
-    activeLabel.innerText = "Document ready for questions";
 
     const select = document.getElementById('doc-select-dropdown');
     const selectedOption = select.options[select.selectedIndex];
     if (selectedOption) {
         activeLabel.innerText = `Active: ${selectedOption.text}`;
+    }
+
+    // Fetch and render past chat history for this document
+    if (box) {
+        box.innerHTML = '<p class="text-center text-slate-500 text-xs my-auto">Loading chat history...</p>';
+    }
+
+    try {
+        const history = await request(`/api/v1/user/documents/${docId}/history`, 'GET');
+        if (box) {
+            box.innerHTML = '';
+            if (!history || history.length === 0) {
+                box.innerHTML = '<p class="empty-msg text-center text-slate-500 text-xs my-auto">No previous conversation for this document. Ask your first question below!</p>';
+            } else {
+                history.forEach(item => {
+                    // Append user question
+                    box.innerHTML += `
+                        <div class="flex justify-end mb-3">
+                            <div class="bg-cyan-500 text-slate-950 rounded-2xl px-4 py-2.5 max-w-[80%] text-sm font-medium shadow-md">
+                                ${escapeHtml(item.question)}
+                            </div>
+                        </div>
+                    `;
+                    // Append AI answer
+                    const formattedAnswer = escapeHtml(item.answer || "")
+                        .replace(/\n/g, '<br>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    box.innerHTML += `
+                        <div class="flex items-start gap-2 mb-3">
+                            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 text-xs font-bold shrink-0">AI</div>
+                            <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-slate-200 text-sm shadow-md space-y-2 max-w-[85%]">
+                                <div class="leading-relaxed">${formattedAnswer}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                box.scrollTop = box.scrollHeight;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load document history:", e);
+        if (box) {
+            box.innerHTML = '<p class="text-center text-rose-400 text-xs my-auto">Failed to load document chat history.</p>';
+        }
     }
 }
 
