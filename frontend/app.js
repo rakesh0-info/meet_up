@@ -332,7 +332,10 @@ async function handleRegister(event) {
     const password = document.getElementById('reg-password').value;
 
     try {
-        await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
+         const res=await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
+        console.log('API Response:', res); 
+         showToast(res.message || 'Registration successful!');
+
         showOTPScreen();
     } catch (e) {
         console.error(e);
