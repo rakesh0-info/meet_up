@@ -360,9 +360,9 @@ async function handleLogin(event) {
         }
     } catch (e) {
         console.warn("Backend login error, initializing session:", e);
-        accessToken = 'session_token_' + Date.now();
-        localStorage.setItem('access_token', accessToken);
-        currentUserRole = currentEmail.toLowerCase().includes('admin') ? 'admin' : 'user';
+        // accessToken = 'session_token_' + Date.now();
+        // localStorage.setItem('access_token', accessToken);
+        // currentUserRole = currentEmail.toLowerCase().includes('admin') ? 'admin' : 'user';
         // showToast('Signed in as ' + currentEmail, 'info');
         // await loadDashboard();
     }
