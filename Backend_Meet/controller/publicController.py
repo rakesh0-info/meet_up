@@ -7,6 +7,7 @@ import re
 import time
 from typing import List, Optional
 from enums.upload_status import up_status
+from ai_client import client, pinecone_index
 
 
 from dotenv import load_dotenv
@@ -670,10 +671,8 @@ async def ask_document_question(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER))
 ):
-    # FIXED: Check against the actual DocumentChat model (from document_rag.py) 
-    # to verify the file/document exists and belongs to the current user.
     document = (
-        db.query(DocumentChat) # Use whatever you named your main document metadata model
+        db.query(DocumentChat)
         .filter(
             DocumentChat.id == document_id,
             DocumentChat.user_id == current_user.id,
@@ -698,25 +697,40 @@ async def ask_document_question(
             .all()
         )
     
-    # 2. If no page numbers found, fallback to vector similarity search
+    # 2. If no page numbers found, query Pinecone for vector similarity
     if not matched_chunks:
         query_embedding_res = client.models.embed_content(
             model="gemini-embedding-001",
             contents=question,
             config=types.EmbedContentConfig(
                 task_type="RETRIEVAL_QUERY",
-                output_dimensionality=768,
+                output_dimensionality=1024,
             ),
         )
         query_embedding = query_embedding_res.embeddings[0].values
 
-        matched_chunks = (
-            db.query(DocumentChunk)
-            .filter(DocumentChunk.document_id == document_id)
-            .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
-            .limit(4)
-            .all()
+        # Query Pinecone and filter strictly by this document_id
+        pinecone_results = pinecone_index.query(
+            vector=query_embedding,
+            top_k=4,
+            include_metadata=True,
+            filter={"document_id": {"$eq": document_id}}
         )
+
+        # Extract the chunk IDs returned by Pinecone
+        chunk_ids = [int(match["id"]) for match in pinecone_results.get("matches", [])]
+
+        if chunk_ids:
+            # Fetch the actual text contents from Neon Postgres using those IDs
+            matched_chunks = (
+                db.query(DocumentChunk)
+                .filter(DocumentChunk.id.in_(chunk_ids))
+                .all()
+            )
+            
+            # Sort chunks to match Pinecone's relevance order
+            id_order = {cid: idx for idx, cid in enumerate(chunk_ids)}
+            matched_chunks.sort(key=lambda c: id_order.get(c.id, 0))
 
     if not matched_chunks:
         raise HTTPException(

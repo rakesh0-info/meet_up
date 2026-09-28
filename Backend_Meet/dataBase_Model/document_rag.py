@@ -37,7 +37,7 @@ class DocumentChunk(Base):
     chunk_index = Column(Integer, nullable=False)
     page_number = Column(Integer, nullable=True)
     content = Column(Text, nullable=False)
-    embedding = Column(Vector(768), nullable=True)  # text-embedding-004 output dimension
+    # embedding = Column(Vector(768), nullable=True)  # text-embedding-004 output dimension
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     document = relationship("DocumentChat", back_populates="chunks")

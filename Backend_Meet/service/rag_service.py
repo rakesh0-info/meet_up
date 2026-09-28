@@ -11,11 +11,9 @@ from enums.upload_status import up_status
 from database import SessionLocal
 from dataBase_Model.document_rag import DocumentChat, DocumentChunk
 from service.notification_service import create_notification
+from ai_client import client, pinecone_index  # Imports shared Gemini client & Pinecone index
 
 load_dotenv()
-
-# Initialize the official Google GenAI client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def extract_text_from_file(file_path: str) -> str:
     text = ""
@@ -96,8 +94,8 @@ def process_document_background(doc_id: int):
             db.commit()
             return
 
-        # 2. Generate embeddings in batches with rate-limit handling & retries
-        BATCH_SIZE = 10  # Balanced size for performance and free-tier limits
+        # 2. Generate embeddings in batches, save text chunks to Neon, and push vectors to Pinecone
+        BATCH_SIZE = 10  
         
         for i in range(0, len(all_chunks_with_metadata), BATCH_SIZE):
             batch_items = all_chunks_with_metadata[i : i + BATCH_SIZE]
@@ -115,7 +113,7 @@ def process_document_background(doc_id: int):
                         contents=batch_contents,
                         config=types.EmbedContentConfig(
                             task_type="RETRIEVAL_DOCUMENT",
-                            output_dimensionality=768,
+                            output_dimensionality=1024,
                         ),
                     )
                     break
@@ -130,22 +128,39 @@ def process_document_background(doc_id: int):
                     else:
                         raise api_err
 
-            # Save chunks and their vector embeddings to database
-            for item, emb in zip(batch_items, embedding_res.embeddings):
+            # Save chunks to Neon Postgres first to generate their primary key IDs
+            db_chunks_batch = []
+            for item in batch_items:
                 chunk_obj = DocumentChunk(
                     document_id=doc.id,
                     chunk_index=item["chunk_index"],
                     content=item["content"],
-                    page_number=item["page_number"],
-                    embedding=emb.values  # List of 768 floats for pgvector
+                    page_number=item["page_number"]
                 )
                 db.add(chunk_obj)
+                db_chunks_batch.append(chunk_obj)
+            
+            db.commit() # Commit to populate chunk_obj.id fields
+
+            # Prepare vectors using Postgres chunk IDs and push to Pinecone
+            vectors_to_upsert = []
+            for db_chunk, emb in zip(db_chunks_batch, embedding_res.embeddings):
+                vectors_to_upsert.append({
+                    "id": str(db_chunk.id),  # Use Neon Postgres chunk ID as Pinecone vector ID
+                    "values": emb.values,
+                    "metadata": {
+                        "document_id": doc.id,
+                        "page_number": db_chunk.page_number or 0
+                    }
+                })
+
+            pinecone_index.upsert(vectors=vectors_to_upsert)
 
             # Brief pause between batches to protect against rate limits
             time.sleep(5)
 
         # 3. Finalize success state
-        doc.upload_status=up_status.SUCESSFULL
+        doc.upload_status = up_status.SUCESSFULL
         db.commit()
         
         create_notification(
@@ -161,25 +176,19 @@ def process_document_background(doc_id: int):
         print(f"Error processing document {doc_id}: {e}")
 
         create_notification(
-                    db=db,
-                    user_id=doc.user_id,
-                    message="document upload Fail",
-                    notification_type="SYSTEM_NOTIFICATION_DOCUMENT UPLOAD Faild"
-                )
+            db=db,
+            user_id=doc.user_id,
+            message="document upload Fail",
+            notification_type="SYSTEM_NOTIFICATION_DOCUMENT UPLOAD Faild"
+        )
         try:
             db.expire_all()
             failed_doc = db.query(DocumentChat).filter(DocumentChat.id == doc_id).first()
             if failed_doc:
                 failed_doc.upload_status = up_status.FAILED
-                
-                
                 db.commit()
         except Exception as db_err:
             print(f"Failed to record error state for document {doc_id}: {db_err}")
 
     finally:
         db.close()
-
-
-
-# 
