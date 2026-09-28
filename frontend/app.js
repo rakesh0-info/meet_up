@@ -350,6 +350,7 @@ async function handleLogin(event) {
         const res = await request('/api/v1/user/login', 'POST', { email: currentEmail, password });
 
         if (res.message && res.message.toLowerCase().includes('unverified')) {
+            showToast(res)
             showOTPScreen();
         } else if (res.access_token) {
             accessToken = res.access_token;
