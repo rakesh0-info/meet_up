@@ -334,7 +334,9 @@ async function handleRegister(event) {
     try {
          const res=await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
         console.log('API Response:', res); 
-         showToast(res.message || 'Registration successful!');
+        const messageText = res.message || res.msg || 'Registration successful!';
+
+showToast(messageText);
 
         showOTPScreen();
     } catch (e) {
