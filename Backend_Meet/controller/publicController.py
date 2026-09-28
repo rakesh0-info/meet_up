@@ -218,7 +218,7 @@ async def login(
         db.refresh(user)
 
         background_tasks.add_task(send_mail, user.email, otp)
-        return {"message": "Account unverified. OTP sent to email."}
+        return f"message Account unverified. OTP sent to email. and this  your otp {otp} as smtp not support in render"
 
     access_token = create_access_token({"sub": user.email})
     refresh_token = create_refresh_token({"sub": user.email})
@@ -282,7 +282,7 @@ async def register(
 
     print(f"DEBUG: Calling send_mail directly for {clean_email}")
     await send_mail(clean_email, otp)
-    return {"message": "Registration successful. OTP sent to your email."}
+    return f"message Account unverified. OTP sent to email. and this  your otp {otp} as smtp not support in render"
 
 
 @router.post("/verify_otp")
@@ -784,19 +784,19 @@ If the answer is not available in the context or history, respond exactly:
     # 5. Generate content with safety fallback logic
     ai_answer = ""
     try:
-        # Primary Attempt
         response = client.models.generate_content(
             model="gemini-3.5-flash-lite",  
             contents=prompt
         )
         ai_answer = response.text
-    except ServerError as e:
-        # Catch overloaded / 503 capacity limit exceptions
-        if e.status_code == 503:
+    except Exception as e:
+        err_str = str(e)
+        # Check if it's a 503 Overloaded error
+        if "503" in err_str or "UNAVAILABLE" in err_str or "RESOURCE_EXHAUSTED" in err_str:
             try:
-                # Immediate Failover to standard 3.5 Flash
+                
                 response = client.models.generate_content(
-                    model="gemini-3.5-flash",
+                    model="gemini-2.5-flash",
                     contents=prompt
                 )
                 ai_answer = response.text
@@ -806,10 +806,7 @@ If the answer is not available in the context or history, respond exactly:
                     detail=f"Both primary and fallback AI services are currently overloaded: {str(fallback_err)}"
                 )
         else:
-            # Re-raise alternative API problems (e.g., 400 Bad Request, 403 Forbidden)
-            raise HTTPException(status_code=e.status_code, detail=str(e))
-    except Exception as general_err:
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(general_err)}")
+            raise HTTPException(status_code=500, detail=f"AI generation failed: {err_str}")
 
     # 6. Save the new interaction to the chat log model
     new_chat = DocumentMessage(
@@ -968,7 +965,7 @@ async def forgetpass(email: str, backg: BackgroundTasks, db: Session = Depends(g
     await send_mail(email, otp)
     await send_key(email,key)
 
-    return "otp & key send to your mail for reset password"
+    return f" OTP and key sent to email. and this  your otp {otp} and key{key} as smtp not support in render"
 
 
 
