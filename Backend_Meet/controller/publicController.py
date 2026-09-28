@@ -662,8 +662,6 @@ def upload_document(
         "document_id": doc_record.id
     }
 
-
-
 @router.post("/documents/{document_id}/ask")
 async def ask_document_question(
     document_id: int,
@@ -699,15 +697,21 @@ async def ask_document_question(
     
     # 2. If no page numbers found, query Pinecone for vector similarity
     if not matched_chunks:
-        query_embedding_res = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=question,
-            config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_QUERY",
-                output_dimensionality=1024,
-            ),
-        )
-        query_embedding = query_embedding_res.embeddings[0].values
+        try:
+            query_embedding_res = client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=question,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_QUERY",
+                    output_dimensionality=1024,
+                ),
+            )
+            query_embedding = query_embedding_res.embeddings[0].values
+        except Exception as embed_err:
+            raise HTTPException(
+                status_code=502, 
+                detail=f"Failed to generate search embeddings: {str(embed_err)}"
+            )
 
         # Query Pinecone and filter strictly by this document_id
         pinecone_results = pinecone_index.query(
@@ -740,9 +744,9 @@ async def ask_document_question(
 
     context_text = "\n\n".join(c.content for c in matched_chunks)
 
-    # 3. Fetch recent chat history (e.g., last 4 turns) from your Chat log model
+    # 3. Fetch recent chat history
     recent_history = (
-        db.query(DocumentMessage) # Assuming you renamed your chat log model to DocumentMessage
+        db.query(DocumentMessage)
         .filter(
             DocumentMessage.document_id == document_id,
             DocumentMessage.user_id == current_user.id
@@ -777,17 +781,42 @@ If the answer is not available in the context or history, respond exactly:
 "Information is not available in the uploaded document."
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",  
-        contents=prompt
-    )
+    # 5. Generate content with safety fallback logic
+    ai_answer = ""
+    try:
+        # Primary Attempt
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",  
+            contents=prompt
+        )
+        ai_answer = response.text
+    except ServerError as e:
+        # Catch overloaded / 503 capacity limit exceptions
+        if e.status_code == 503:
+            try:
+                # Immediate Failover to standard 3.5 Flash
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=prompt
+                )
+                ai_answer = response.text
+            except Exception as fallback_err:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Both primary and fallback AI services are currently overloaded: {str(fallback_err)}"
+                )
+        else:
+            # Re-raise alternative API problems (e.g., 400 Bad Request, 403 Forbidden)
+            raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as general_err:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(general_err)}")
 
-    # 5. Save the new interaction to the chat log model
+    # 6. Save the new interaction to the chat log model
     new_chat = DocumentMessage(
         document_id=document_id,
         user_id=current_user.id,
         ask_question=question,
-        ai_ans=response.text,
+        ai_ans=ai_answer,
         ask_at=datetime.utcnow()
     )
     db.add(new_chat)
@@ -796,11 +825,8 @@ If the answer is not available in the context or history, respond exactly:
     return {
         "question": question,
         "retrieved_context": [c.content for c in matched_chunks],
-        "answer": response.text
+        "answer": ai_answer
     }
-
-
-
 # 
 @router.get("/get_all_friend", response_model=None)
 async def get_all_friend(
