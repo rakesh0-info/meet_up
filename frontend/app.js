@@ -1239,79 +1239,341 @@ function addRealtimeNotification(notification) {
     }
 }
 
+
 function updateNotificationUI(notifications) {
+
     const badge = document.getElementById('notif-badge');
     const container = document.getElementById('notif-list');
 
     if (!container) return;
 
     if (!notifications || notifications.length === 0) {
-        if (badge) badge.classList.add('hidden');
-        container.innerHTML = '<p class="empty-msg text-xs text-slate-400 text-center py-6">No unread notifications</p>';
+
+        if (badge) {
+            badge.classList.add('hidden');
+            badge.innerText = '0';
+        }
+
+        container.innerHTML =
+            '<p class="empty-msg text-xs text-slate-400 text-center py-6">No unread notifications</p>';
+
         return;
     }
 
+    // Update notification badge
     if (badge) {
         badge.classList.remove('hidden');
         badge.innerText = notifications.length;
     }
 
     container.innerHTML = notifications.map(n => {
-        let senderId = n.sender_id || n.metadata?.sender_id || n.data?.sender_id;
-        let roomId = n.room_id || n.metadata?.room_id || n.data?.room_id || n.roomId;
-        const rawMessage = (n.message || '').toString();
 
-        const senderMarker = rawMessage.match(/\[sender_id:(\d+)\]/i);
-        if (!senderId && senderMarker) senderId = Number(senderMarker[1]);
+        // --------------------------------------------------
+        // BASIC DATA
+        // --------------------------------------------------
 
-        const msg = rawMessage.replace(/\s*\[sender_id:\d+\]/i, '');
+        let senderId =
+            n.sender_id ??
+            n.metadata?.sender_id ??
+            n.data?.sender_id;
 
-        if (!roomId) {
-            const uuidMatch = msg.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-            if (uuidMatch) roomId = uuidMatch[0];
+        let roomId =
+            n.room_id ??
+            n.metadata?.room_id ??
+            n.data?.room_id ??
+            n.roomId;
+
+        const rawMessage = String(n.message || '');
+
+        // --------------------------------------------------
+        // EXTRACT SENDER ID FROM MESSAGE IF NECESSARY
+        // Example:
+        // "John sent you a friend request [sender_id:123]"
+        // --------------------------------------------------
+
+        const senderMarker = rawMessage.match(
+            /\[sender_id:(\d+)\]/i
+        );
+
+        if (!senderId && senderMarker) {
+            senderId = Number(senderMarker[1]);
         }
 
-        if (roomId) lastRoomId = roomId;
+        // Remove sender marker from displayed message
+        const msg = rawMessage.replace(
+            /\s*\[sender_id:\d+\]/i,
+            ''
+        ).trim();
 
-        const isIncomingCall = n.notification_type === 'INCOMING_CALL' || (msg.toLowerCase().includes('incoming') && msg.toLowerCase().includes('call'));
-        const isAcceptedCall = n.notification_type === 'CALL_ACCEPTED';
-        const isRejectedCall = n.notification_type === 'CALL_REJECTED';
-        const isSummaryNotif = n.notification_type === 'CALL_SUMMARY_READY' || msg.toLowerCase().includes('summary');
-        const isFriendReq = n.notification_type === 'FRIEND_REQUEST' || (msg.toLowerCase().includes('friend') && msg.toLowerCase().includes('request'));
+        // --------------------------------------------------
+        // FIND ROOM ID
+        // --------------------------------------------------
 
-return `
-    <div class="notif-item cursor-pointer hover:bg-slate-800/50 p-2.5 rounded-xl transition-all" onclick="markNotificationAsRead(${n.id}, event)">
-        <p class="text-xs text-slate-200">${escapeHtml(msg)}</p>
+        if (!roomId) {
 
-        ${isFriendReq && Number.isInteger(Number(senderId)) && !n.is_actioned ? `
-            <div class="notif-actions" onclick="event.stopPropagation()">
-                <button class="btn-success" onclick="respondRequest(${senderId}, 'yes',${n.id})">Accept</button>
-                <button class="btn-danger" onclick="respondRequest(${senderId}, 'no',${n.id})">Reject</button>
-            </div>` : (isFriendReq && n.is_actioned ? `<span class="text-xs text-slate-400 mt-1 block">Response sent</span>` : '')}
-    </div>
+            const uuidMatch = msg.match(
+                /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+            );
 
+            if (uuidMatch) {
+                roomId = uuidMatch[0];
+            }
+        }
 
-                ${isIncomingCall ? `
-                    <div class="notif-actions" onclick="event.stopPropagation()">
-                        <button class="btn-success" onclick="respondToCall('${roomId || ''}', true, ${n.id})">Accept Call</button>
-                        <button class="btn-danger" onclick="respondToCall('${roomId || ''}', false, ${n.id})">Reject</button>
-                    </div>` : ''}
+        if (roomId) {
+            lastRoomId = roomId;
+        }
 
-                ${isAcceptedCall && roomId ? `
-                    <div class="notif-actions" onclick="event.stopPropagation()">
-                        <button class="btn-success" onclick="joinAcceptedCall('${roomId}', ${n.id})">Join Call</button>
-                    </div>` : ''}
+        // --------------------------------------------------
+        // NOTIFICATION TYPES
+        // IMPORTANT:
+        // Do NOT detect friend requests from message text.
+        // Use notification_type as the source of truth.
+        // --------------------------------------------------
 
-                ${isRejectedCall ? '<p class="text-[11px] text-rose-400 mt-1">Call was rejected.</p>' : ''}
+        const notificationType =
+            String(n.notification_type || '').toUpperCase();
 
-                ${isSummaryNotif ? `
-                    <div class="notif-actions" onclick="event.stopPropagation()">
-                        <button class="btn-success" onclick="viewSummaryFromNotif('${roomId || ''}', ${n.id})">View Summary</button>
-                    </div>` : ''}
+        // --------------------------------------------------
+        // CALL NOTIFICATIONS
+        // --------------------------------------------------
+
+        const isIncomingCall =
+            notificationType === 'INCOMING_CALL';
+
+        const isAcceptedCall =
+            notificationType === 'CALL_ACCEPTED';
+
+        const isRejectedCall =
+            notificationType === 'CALL_REJECTED';
+
+        const isSummaryNotif =
+            notificationType === 'CALL_SUMMARY_READY';
+
+        // --------------------------------------------------
+        // FRIEND REQUEST
+        //
+        // ONLY a real FRIEND_REQUEST can show
+        // Accept / Reject.
+        //
+        // Do NOT use:
+        // msg.includes('friend') && msg.includes('request')
+        // --------------------------------------------------
+
+        const isFriendReq =
+            notificationType === 'FRIEND_REQUEST';
+
+        const isFriendReqPending =
+            isFriendReq &&
+            !Boolean(n.is_actioned) &&
+            Number.isInteger(Number(senderId));
+
+        const isFriendReqActioned =
+            isFriendReq &&
+            Boolean(n.is_actioned);
+
+        // --------------------------------------------------
+        // ESCAPED MESSAGE
+        // --------------------------------------------------
+
+        const safeMessage = escapeHtml(msg);
+
+        // --------------------------------------------------
+        // FRIEND REQUEST ACTIONS
+        // --------------------------------------------------
+
+        let friendRequestHTML = '';
+
+        if (isFriendReqPending) {
+
+            friendRequestHTML = `
+                <div
+                    class="notif-actions mt-2"
+                    onclick="event.stopPropagation()"
+                >
+                    <button
+                        type="button"
+                        class="btn-success"
+                        onclick="respondRequest(
+                            ${Number(senderId)},
+                            'yes',
+                            ${Number(n.id)},
+                            event
+                        )"
+                    >
+                        Accept
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn-danger"
+                        onclick="respondRequest(
+                            ${Number(senderId)},
+                            'no',
+                            ${Number(n.id)},
+                            event
+                        )"
+                    >
+                        Reject
+                    </button>
+                </div>
+            `;
+
+        } else if (isFriendReqActioned) {
+
+            friendRequestHTML = `
+                <span class="text-xs text-slate-400 mt-1 block">
+                    Response sent
+                </span>
+            `;
+        }
+
+        // --------------------------------------------------
+        // INCOMING CALL ACTIONS
+        // --------------------------------------------------
+
+        let incomingCallHTML = '';
+
+        if (isIncomingCall && roomId) {
+
+            incomingCallHTML = `
+                <div
+                    class="notif-actions mt-2"
+                    onclick="event.stopPropagation()"
+                >
+                    <button
+                        type="button"
+                        class="btn-success"
+                        onclick="respondToCall(
+                            '${String(roomId).replace(/'/g, "\\'")}',
+                            true,
+                            ${Number(n.id)}
+                        )"
+                    >
+                        Accept Call
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn-danger"
+                        onclick="respondToCall(
+                            '${String(roomId).replace(/'/g, "\\'")}',
+                            false,
+                            ${Number(n.id)}
+                        )"
+                    >
+                        Reject
+                    </button>
+                </div>
+            `;
+        }
+
+        // --------------------------------------------------
+        // ACCEPTED CALL
+        // --------------------------------------------------
+
+        let acceptedCallHTML = '';
+
+        if (isAcceptedCall && roomId) {
+
+            const safeRoomId =
+                String(roomId).replace(/'/g, "\\'");
+
+            acceptedCallHTML = `
+                <div
+                    class="notif-actions mt-2"
+                    onclick="event.stopPropagation()"
+                >
+                    <button
+                        type="button"
+                        class="btn-success"
+                        onclick="joinAcceptedCall(
+                            '${safeRoomId}',
+                            ${Number(n.id)}
+                        )"
+                    >
+                        Join Call
+                    </button>
+                </div>
+            `;
+        }
+
+        // --------------------------------------------------
+        // REJECTED CALL
+        // --------------------------------------------------
+
+        let rejectedCallHTML = '';
+
+        if (isRejectedCall) {
+
+            rejectedCallHTML = `
+                <p class="text-[11px] text-rose-400 mt-1">
+                    Call was rejected.
+                </p>
+            `;
+        }
+
+        // --------------------------------------------------
+        // CALL SUMMARY
+        // --------------------------------------------------
+
+        let summaryHTML = '';
+
+        if (isSummaryNotif) {
+
+            const safeRoomId =
+                String(roomId || '').replace(/'/g, "\\'");
+
+            summaryHTML = `
+                <div
+                    class="notif-actions mt-2"
+                    onclick="event.stopPropagation()"
+                >
+                    <button
+                        type="button"
+                        class="btn-success"
+                        onclick="viewSummaryFromNotif(
+                            '${safeRoomId}',
+                            ${Number(n.id)}
+                        )"
+                    >
+                        View Summary
+                    </button>
+                </div>
+            `;
+        }
+
+        // --------------------------------------------------
+        // FINAL NOTIFICATION
+        // --------------------------------------------------
+
+        return `
+            <div
+                class="notif-item cursor-pointer hover:bg-slate-800/50 p-2.5 rounded-xl transition-all"
+                onclick="markNotificationAsRead(${Number(n.id)}, event)"
+            >
+
+                <p class="text-xs text-slate-200">
+                    ${safeMessage}
+                </p>
+
+                ${friendRequestHTML}
+
+                ${incomingCallHTML}
+
+                ${acceptedCallHTML}
+
+                ${rejectedCallHTML}
+
+                ${summaryHTML}
+
             </div>
         `;
+
     }).join('');
 }
+
+
 
 async function joinAcceptedCall(roomId, notificationId) {
     if (notificationId) {
