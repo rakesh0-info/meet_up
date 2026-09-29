@@ -909,14 +909,14 @@ let selectedPlanId = 2; // Auto-select Most Popular by default
 
 function selectPlanCard(planId, event) {
     if (event) event.stopPropagation();
-    selectedPlanId = planId;
+    let selectedPlanIds = planId;
     document.querySelectorAll('.enterprise-plan-card').forEach(card => {
         const id = Number(card.getAttribute('data-plan-id'));
         const radioLabel = card.querySelector('.radio-label');
         const buyBtn = card.querySelector('.enterprise-buy-btn');
         const planTitle = card.querySelector('h3') ? card.querySelector('h3').innerText.trim() : 'Plan';
 
-        if (id === planId) {
+        if (id === selectedPlanId) {
             card.classList.add('selected');
             if (radioLabel) radioLabel.innerText = 'Auto-Selected';
             if (buyBtn) {
