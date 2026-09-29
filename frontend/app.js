@@ -1402,7 +1402,7 @@ function updateNotificationUI(notifications) {
                         )"
                     >
                         Accept
-                        ${loadUserDashboard()}
+                       
                     </button>
 
                     <button
@@ -1600,17 +1600,70 @@ async function viewSummaryFromNotif(roomId, notificationId) {
     await fetchSummary();
 }
 
-async function respondRequest(senderId, status, notificationId) {
+
+async function respondRequest(senderId, status, notificationId, event) {
     try {
-        await request('/api/v1/user/update_request', 'PUT', { sender_id: parseInt(senderId), status });
-        if (notificationId) {
-            await request(`/api/v1/notifications/${notificationId}/read`, 'PATCH');
+        if (event) {
+            event.stopPropagation();
         }
-        fetchNotifications();
+
+        // Accept = yes
+        // Reject = no
+        const response = await request(
+            '/api/v1/user/update_request',
+            'PUT',
+            {
+                sender_id: parseInt(senderId),
+                status: status
+            }
+        );
+
+        console.log('Friend request response:', response);
+
+        // Mark the notification as read/actioned
+        if (notificationId) {
+            await request(
+                `/api/v1/notifications/${notificationId}/read`,
+                'PATCH'
+            );
+        }
+
+        // --------------------------------------------------
+        // ACCEPTED
+        // --------------------------------------------------
+        if (status === 'yes') {
+
+            console.log('Friend request accepted.');
+
+            // Immediately refresh Pinned Contacts & Teammates
+            if (typeof loadUserDashboard === 'function') {
+                await loadUserDashboard();
+            }
+        }
+
+        // --------------------------------------------------
+        // REJECTED
+        // --------------------------------------------------
+        else if (status === 'no') {
+
+            console.log('Friend request rejected.');
+
+            // Do NOT load contacts/teammates.
+            // Only notifications need to be refreshed.
+        }
+
+        // Refresh notifications in both cases
+        await fetchNotifications();
+
     } catch (e) {
-        console.error("Failed to update request:", e);
+        console.error(
+            'Failed to update friend request:',
+            e
+        );
     }
 }
+
+
 
 function toggleNotifications() {
     const el = document.getElementById('notif-dropdown');
