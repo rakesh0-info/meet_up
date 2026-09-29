@@ -1402,6 +1402,7 @@ function updateNotificationUI(notifications) {
                         )"
                     >
                         Accept
+                        ${loadUserDashboard()}
                     </button>
 
                     <button
