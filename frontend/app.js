@@ -1279,15 +1279,17 @@ function updateNotificationUI(notifications) {
         const isSummaryNotif = n.notification_type === 'CALL_SUMMARY_READY' || msg.toLowerCase().includes('summary');
         const isFriendReq = n.notification_type === 'FRIEND_REQUEST' || (msg.toLowerCase().includes('friend') && msg.toLowerCase().includes('request'));
 
-        return `
-            <div class="notif-item cursor-pointer hover:bg-slate-800/50 p-2.5 rounded-xl transition-all" onclick="markNotificationAsRead(${n.id}, event)">
-                <p class="text-xs text-slate-200">${escapeHtml(msg)}</p>
+return `
+    <div class="notif-item cursor-pointer hover:bg-slate-800/50 p-2.5 rounded-xl transition-all" onclick="markNotificationAsRead(${n.id}, event)">
+        <p class="text-xs text-slate-200">${escapeHtml(msg)}</p>
 
-                ${isFriendReq && Number.isInteger(Number(senderId)) ? `
-                    <div class="notif-actions" onclick="event.stopPropagation()">
-                        <button class="btn-success" onclick="respondRequest(${senderId}, 'yes', ${n.id})">Accept</button>
-                        <button class="btn-danger" onclick="respondRequest(${senderId}, 'no', ${n.id})">Reject</button>
-                    </div>` : ''}
+        ${isFriendReq && Number.isInteger(Number(senderId)) && !n.is_actioned ? `
+            <div class="notif-actions" onclick="event.stopPropagation()">
+                <button class="btn-success" onclick="respondRequest(${senderId}, 'yes',${n.id})">Accept</button>
+                <button class="btn-danger" onclick="respondRequest(${senderId}, 'no',${n.id})">Reject</button>
+            </div>` : (isFriendReq && n.is_actioned ? `<span class="text-xs text-slate-400 mt-1 block">Response sent</span>` : '')}
+    </div>
+
 
                 ${isIncomingCall ? `
                     <div class="notif-actions" onclick="event.stopPropagation()">
