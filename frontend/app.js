@@ -2402,25 +2402,72 @@ window.addEventListener('DOMContentLoaded', () => {
 let stripeInstance = Stripe('pk_test_51UE1SKKyhs2eWHloSrFvMxArllFqC7kjfSP62womqDKXn1x2gk5efZvm6tQwVejjxwTQ0nV4GvZBtbShuCQryhj900zRR1iJIa'); // Replace with your publishable key
 let elements;
 
+
+
+// Triggered when user clicks a plan button
+async function subscribePlan(planId) {
+    if (!accessToken) {
+        showToast('Please log in before activating a token plan.', 'info');
+        return;
+    }
+
+    // Open the payment popup and fetch the client_secret from FastAPI
+    await openPaymentPopup(planId);
+}
+
 async function openPaymentPopup(planId) {
     try {
-        // 1. Call your updated backend endpoint
+        // Calls FastAPI /activate_plan endpoint which creates a PaymentIntent
         const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
         const clientSecret = response.client_secret;
 
-        // 2. Show the modal
+        if (!clientSecret) {
+            showToast("Failed to retrieve payment session.", "error");
+            return;
+        }
+
+        // Show the modal container
         document.getElementById('payment-modal').classList.remove('hidden');
 
-        // 3. Initialize Stripe Elements
+        // Initialize and mount Stripe Payment Element
         elements = stripeInstance.elements({ clientSecret });
         const paymentElement = elements.create('payment');
         paymentElement.mount('#payment-element');
 
     } catch (err) {
+        console.error("Payment initialization error:", err);
         showToast("Failed to initialize payment modal.", "error");
     }
 }
 
+// Handle payment form submission inside the popup
+document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submitButton = document.getElementById('submit-payment');
+    submitButton.disabled = true;
+    submitButton.textContent = "Processing...";
+
+    const { error } = await stripeInstance.confirmPayment({
+        elements,
+        confirmParams: {
+            return_url: window.location.origin + '/dashboard?payment=success', // Redirect after confirmation
+        },
+    });
+
+    if (error) {
+        showToast(error.message, "error");
+        submitButton.disabled = false;
+        submitButton.textContent = "Pay Now";
+    }
+});
+
+function closePaymentModal() {
+    document.getElementById('payment-modal').classList.add('hidden');
+    const submitButton = document.getElementById('submit-payment');
+    submitButton.disabled = false;
+    submitButton.textContent = "Pay Now";
+}
 // 4. Handle form submission inside the popup
 document.getElementById('payment-form').addEventListener('submit', async (e) => {
     e.preventDefault();

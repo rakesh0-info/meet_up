@@ -376,9 +376,9 @@ async def pay(
         raise HTTPException(status_code=400, detail="Invalid plan amount")
 
     try:
-        # Create a Stripe PaymentIntent instead of a Checkout Session
+        # Create a Stripe PaymentIntent for inline modal element
         intent = stripe.PaymentIntent.create(
-            amount=int(plan.amount_to_pay * 100),  # Convert to smallest currency unit (e.g., paise/cents)
+            amount=int(plan.amount_to_pay * 100),  # Convert currency to smallest unit (cents/paise)
             currency=plan.currency.lower() if plan.currency else "inr",
             metadata={
                 "user_id": str(current_user.id),
@@ -417,6 +417,8 @@ async def payment_success(
         }
 
     raise HTTPException(status_code=400, detail="Payment incomplete.")
+
+
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
@@ -642,6 +644,8 @@ def upload_document(
         "document_id": doc_record.id
     }
 
+
+
 @router.post("/documents/{document_id}/ask")
 async def ask_document_question(
     document_id: int,
@@ -805,6 +809,9 @@ If the answer is not available in the context or history, respond exactly:
         "answer": ai_answer
     }
 # 
+
+
+
 @router.get("/get_all_friend", response_model=None)
 async def get_all_friend(
     db: Session = Depends(get_db),
