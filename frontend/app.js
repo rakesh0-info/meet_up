@@ -2470,7 +2470,7 @@ let elements;
 // }
 
 const stripe = Stripe(
-    'YOUR_STRIPE_PUBLISHABLE_KEY'
+    'pk_test_51UE1SKKyhs2eWHloSrFvMxArllFqC7kjfSP62womqDKXn1x2gk5efZvm6tQwVejjxwTQ0nV4GvZBtbShuCQryhj900zRR1iJIa'
 );
 
 let stripeElements = null;
