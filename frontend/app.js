@@ -362,23 +362,33 @@ async function handleLogin(event) {
     try {
         const res = await request('/api/v1/user/login', 'POST', { email: currentEmail, password });
 
-        if (res.message && res.message.toLowerCase().includes('unverified')) {
-            showToast(res)
+        // Handle string vs object response types
+        const responseString = typeof res === 'string' ? res : (res.message || res.detail || '');
+
+        if (responseString.toLowerCase().includes('unverified')) {
+            showToast(responseString);
             showOTPScreen();
-        } else if (res.access_token) {
+        } else if (res && res.access_token) {
             accessToken = res.access_token;
             localStorage.setItem('access_token', accessToken);
             currentUserRole = res.role || 'user';
             showToast('Signed in successfully!', 'success');
             await loadDashboard();
+        } else {
+            showToast(responseString || 'Login successful!');
         }
     } catch (e) {
-        console.warn("Backend login error, initializing session:", e);
-        // accessToken = 'session_token_' + Date.now();
-        // localStorage.setItem('access_token', accessToken);
-        // currentUserRole = currentEmail.toLowerCase().includes('admin') ? 'admin' : 'user';
-        // showToast('Signed in as ' + currentEmail, 'info');
-        // await loadDashboard();
+        console.warn("Backend login error:", e);
+        
+        // Check if the backend error (e.g., 400 Bad Request) indicates an unverified user
+        const errorMsg = e.detail || e.message || (typeof e === 'string' ? e : '');
+        
+        if (errorMsg.toLowerCase().includes('unverified') || errorMsg.toLowerCase().includes('otp')) {
+            showToast(errorMsg, 'info');
+            showOTPScreen();
+        } else {
+            showToast(errorMsg || 'Login failed. Please check your credentials.', 'error');
+        }
     }
 }
 
