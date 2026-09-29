@@ -2456,6 +2456,7 @@ let stripePaymentElement = null;
 let currentPaymentIntentId = null;
 
 let currentPlanId = null;
+let paymentStartingBalance = null;
 
 
 /* =====================================================
@@ -2489,28 +2490,75 @@ async function openPaymentPopup(planId) {
         currentPlanId = planId;
 
         /*
+         * =========================================================
+         * STEP 1:
+         * Capture wallet balance BEFORE creating the payment.
+         *
+         * This is very important because the Stripe webhook may
+         * credit the tokens very quickly after payment succeeds.
+         * =========================================================
+         */
+
+        try {
+
+            const currentUser =
+                await request(
+                    "/api/v1/user/me",
+                    "GET"
+                );
+
+            paymentStartingBalance =
+                Number(
+                    currentUser.token_balance || 0
+                );
+
+            console.log(
+                "Payment starting wallet balance:",
+                paymentStartingBalance
+            );
+
+        } catch (walletError) {
+
+            console.warn(
+                "Could not capture starting wallet balance:",
+                walletError
+            );
+
+            paymentStartingBalance = null;
+        }
+
+
+        /*
+         * =========================================================
+         * STEP 2:
          * Ask backend to create PaymentIntent
+         * =========================================================
          */
 
         const response = await request(
             `/api/v1/user/activate_plan?plan_id=${planId}`,
-            'POST'
+            "POST"
         );
 
+
         console.log(
-            'PaymentIntent response:',
+            "PaymentIntent response:",
             response
         );
+
 
         const clientSecret =
             response.client_secret;
 
+
         if (!clientSecret) {
 
             showToast(
-                'Unable to initialize payment.',
-                'error'
+                "Unable to initialize payment.",
+                "error"
             );
+
+            paymentStartingBalance = null;
 
             return;
         }
@@ -2521,38 +2569,44 @@ async function openPaymentPopup(planId) {
 
 
         /*
+         * =========================================================
+         * STEP 3:
          * Update plan information
+         * =========================================================
          */
 
         const plan =
             response.plan || {};
 
+
         const planName =
             document.getElementById(
-                'payment-plan-name'
+                "payment-plan-name"
             );
+
 
         const tokenCount =
             document.getElementById(
-                'payment-token-count'
+                "payment-token-count"
             );
+
 
         const planPrice =
             document.getElementById(
-                'payment-plan-price'
+                "payment-plan-price"
             );
+
 
         const emailInput =
             document.getElementById(
-                'payment-email'
+                "payment-email"
             );
 
 
         if (planName) {
 
             planName.textContent =
-                plan.name || 'Token Plan';
-
+                plan.name || "Token Plan";
         }
 
 
@@ -2560,7 +2614,6 @@ async function openPaymentPopup(planId) {
 
             tokenCount.textContent =
                 `${plan.tokens_to_receive || 0} Tokens`;
-
         }
 
 
@@ -2568,25 +2621,27 @@ async function openPaymentPopup(planId) {
 
             const currency =
                 String(
-                    plan.currency || 'INR'
+                    plan.currency || "INR"
                 ).toUpperCase();
+
 
             planPrice.textContent =
                 `${currency} ${plan.amount_to_pay || 0}`;
-
         }
 
 
         if (emailInput) {
 
             emailInput.value =
-                currentEmail || '';
-
+                currentEmail || "";
         }
 
 
         /*
-         * Reset old Stripe Element
+         * =========================================================
+         * STEP 4:
+         * Remove old Stripe Payment Element
+         * =========================================================
          */
 
         if (stripePaymentElement) {
@@ -2598,10 +2653,9 @@ async function openPaymentPopup(planId) {
             } catch (e) {
 
                 console.warn(
-                    'Stripe unmount warning:',
+                    "Stripe unmount warning:",
                     e
                 );
-
             }
 
             stripePaymentElement = null;
@@ -2609,110 +2663,119 @@ async function openPaymentPopup(planId) {
 
 
         /*
+         * =========================================================
+         * STEP 5:
          * Create Stripe Elements
+         * =========================================================
          */
 
         stripeElements =
             stripe.elements({
 
                 clientSecret:
-
                     clientSecret,
 
                 appearance: {
 
-                    theme: 'night',
+                    theme: "night",
 
                     variables: {
 
                         colorPrimary:
-                            '#6366f1',
+                            "#6366f1",
 
                         colorBackground:
-                            '#111827',
+                            "#111827",
 
                         colorText:
-                            '#ffffff',
+                            "#ffffff",
 
                         colorDanger:
-                            '#ef4444',
+                            "#ef4444",
 
                         borderRadius:
-                            '10px'
-
+                            "10px"
                     }
-
                 }
-
             });
 
 
         /*
+         * =========================================================
+         * STEP 6:
          * Create Payment Element
+         * =========================================================
          */
 
         stripePaymentElement =
             stripeElements.create(
-                'payment'
+                "payment"
             );
 
 
         stripePaymentElement.mount(
-            '#payment-element'
+            "#payment-element"
         );
 
 
         /*
-         * Open YOUR popup
+         * =========================================================
+         * STEP 7:
+         * Open YOUR application popup
+         * =========================================================
          */
 
         const modal =
             document.getElementById(
-                'payment-modal'
+                "payment-modal"
             );
+
 
         if (modal) {
 
             modal.classList.remove(
-                'hidden'
+                "hidden"
             );
-
         }
 
 
         /*
-         * Reset messages
+         * =========================================================
+         * STEP 8:
+         * Reset payment messages
+         * =========================================================
          */
 
         const errorBox =
             document.getElementById(
-                'payment-error'
+                "payment-error"
             );
+
 
         const successBox =
             document.getElementById(
-                'payment-success'
+                "payment-success"
             );
+
 
         const payButton =
             document.getElementById(
-                'pay-button'
+                "pay-button"
             );
 
 
         if (errorBox) {
 
-            errorBox.textContent = '';
-
+            errorBox.textContent = "";
+            errorBox.classList.add("hidden");
         }
 
 
         if (successBox) {
 
             successBox.classList.add(
-                'hidden'
+                "hidden"
             );
-
         }
 
 
@@ -2721,25 +2784,33 @@ async function openPaymentPopup(planId) {
             payButton.disabled = false;
 
             payButton.textContent =
-                'Pay Now';
-
+                "Pay Now";
         }
+
+
+        console.log(
+            "Payment popup opened successfully."
+        );
+
 
     } catch (error) {
 
         console.error(
-            'Payment initialization failed:',
+            "Payment initialization failed:",
             error
         );
 
+
+        paymentStartingBalance = null;
+
+
         showToast(
             error.message ||
-            'Unable to initialize payment.',
-            'error'
+            "Unable to initialize payment.",
+            "error"
         );
     }
 }
-
 
 /* =====================================================
    PAYMENT FORM
@@ -2906,38 +2977,45 @@ async function waitForWalletUpdate() {
 
     const maxAttempts = 20;
 
-    let previousBalance = null;
-
 
     /*
-     * Get current wallet balance
+     * =========================================================
+     * IMPORTANT:
+     *
+     * This value was captured BEFORE the PaymentIntent was
+     * created.
+     *
+     * Example:
+     *
+     * paymentStartingBalance = 210
+     *
+     * After webhook:
+     *
+     * newBalance = 240
+     *
+     * Therefore:
+     *
+     * 240 > 210
+     *
+     * Payment completed and tokens were credited.
+     * =========================================================
      */
 
-    try {
+    const startingBalance =
+        paymentStartingBalance;
 
-        const initialUser =
-            await request(
-                "/api/v1/user/me",
-                "GET"
-            );
 
-        previousBalance =
-            Number(
-                initialUser.token_balance || 0
-            );
-
-    } catch (error) {
-
-        console.warn(
-            "Could not get initial wallet balance:",
-            error
-        );
-
-    }
+    console.log(
+        "Waiting for webhook.",
+        "Starting wallet balance:",
+        startingBalance
+    );
 
 
     /*
-     * Wait for Stripe webhook
+     * =========================================================
+     * Check wallet every second
+     * =========================================================
      */
 
     for (
@@ -2945,6 +3023,10 @@ async function waitForWalletUpdate() {
         attempt < maxAttempts;
         attempt++
     ) {
+
+        /*
+         * Wait 1 second
+         */
 
         await new Promise(
             resolve =>
@@ -2955,79 +3037,27 @@ async function waitForWalletUpdate() {
         );
 
 
-        try {
-
-            const user =
-                await request(
-                    "/api/v1/user/me",
-                    "GET"
-                );
-
-
-            const newBalance =
-                Number(
-                    user.token_balance || 0
-                );
-
-
-            console.log(
-                `Wallet check ${attempt + 1}/${maxAttempts}:`,
-                newBalance
-            );
-
-
-            /*
-             * Wallet increased
-             *
-             * This means webhook has credited
-             * the tokens.
-             */
-
-            if (
-                previousBalance !== null &&
-                newBalance > previousBalance
-            ) {
-
-                updateWalletDisplay(
-                    newBalance
-                );
-
-
-                showPaymentSuccess(
-                    newBalance
-                );
-
-
-                return true;
-            }
-
-
-            /*
-             * Keep UI updated
-             */
-
-            updateWalletDisplay(
-                newBalance
-            );
-
-        } catch (error) {
-
-            console.warn(
-                "Wallet refresh failed:",
-                error
-            );
-
-        }
+       
     }
 
 
     /*
-     * Payment was confirmed but webhook
-     * hasn't updated the wallet yet.
+     * =========================================================
+     * 20 seconds passed.
+     *
+     * Stripe already confirmed the payment, but the frontend
+     * did not detect the wallet increase.
+     * =========================================================
      */
 
     console.warn(
-        "Stripe payment confirmed, but webhook wallet update is still pending."
+        "Stripe payment confirmed, but wallet update was not detected within 20 seconds."
+    );
+
+
+    showToast(
+        "Payment received. Your wallet is still being updated.",
+        "info"
     );
 
 
@@ -3043,14 +3073,7 @@ async function waitForWalletUpdate() {
 
         button.textContent =
             "Payment Processing...";
-
     }
-
-
-    showToast(
-        "Payment received. Your wallet will update shortly.",
-        "info"
-    );
 
 
     return false;
