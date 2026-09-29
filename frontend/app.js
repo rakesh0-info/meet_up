@@ -761,87 +761,65 @@ async function loadUserDashboard() {
             const usersGrid = document.getElementById('users-grid');
             const availableUsers = dashboard.available_users || [];
 
-            usersGrid.innerHTML = availableUsers.map(u => {
-                const isAdminCard = u.name === "admin" && u.email === "admin@gmail.com";
-                return `
-                    <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300">
-                                ${(u.name || u.email || 'U').substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-slate-100 text-sm">${escapeHtml(u.name || u.email)}</h3>
-                                <p class="text-xs text-slate-400">${escapeHtml(u.email || '')}</p>
-                            </div>
+            if (usersGrid) {
+                if (availableUsers.length === 0) {
+                    usersGrid.innerHTML = `
+                        <div class="col-span-full item-card text-center py-8 bg-slate-900/70 border border-slate-800 rounded-xl">
+                            <div class="text-3xl mb-2">👥</div>
+                            <h3 class="font-bold text-slate-200 text-sm">No Other Users Found</h3>
+                            <p class="text-xs text-slate-400 mt-1">There are no other active accounts in the database yet.</p>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-top: 8px;">
-                            <button 
-                                ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-1.5 px-3 rounded-lg text-xs"' : 'py-1.5 px-3 rounded-lg text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30'} 
-                                onclick="sendFriendRequest(${u.id})">
-                                Add Friend
-                            </button>
-                            <button 
-                                ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-1.5 px-3 rounded-lg text-xs"' : 'py-1.5 px-3 rounded-lg text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold'} 
-                                onclick="initiateCall(${u.id})">Call User</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                } else {
+                    usersGrid.innerHTML = availableUsers.map(u => {
+                        const isAdminCard = u.name === "admin" && u.email === "admin@gmail.com";
+                        return `
+                            <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300">
+                                        ${(u.name || u.email || 'U').substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-100 text-sm">${escapeHtml(u.name || u.email)}</h3>
+                                        <p class="text-xs text-slate-400">${escapeHtml(u.email || '')}</p>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                    <button 
+                                        ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-1.5 px-3 rounded-lg text-xs"' : 'py-1.5 px-3 rounded-lg text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30'} 
+                                        onclick="sendFriendRequest(${u.id})">
+                                        Add Friend
+                                    </button>
+                                    <button 
+                                        ${isAdminCard ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700 py-1.5 px-3 rounded-lg text-xs"' : 'py-1.5 px-3 rounded-lg text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold'} 
+                                        onclick="initiateCall(${u.id})">Call User</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
             return;
         } catch (e) {
-            console.warn("Loading sample teammates directory:", e);
+            console.warn("Error loading user dashboard data:", e);
         }
     }
 
-    renderFriends([
-        { id: 2, name: "Sarah Lin", email: "sarah.lin@enterprise.ai" },
-        { id: 3, name: "David Chen", email: "david.chen@enterprise.ai" }
-    ]);
+    // Fallback/Unauthenticated Empty State
+    renderFriends([]);
 
     const usersGrid = document.getElementById('users-grid');
     if (usersGrid) {
         usersGrid.innerHTML = `
-            <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300">SL</div>
-                    <div>
-                        <h3 class="font-bold text-slate-100 text-sm">Sarah Lin</h3>
-                        <p class="text-xs text-slate-400">sarah.lin@enterprise.ai</p>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                    <button class="py-1.5 px-3 rounded-lg text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" onclick="sendFriendRequest(2)">Add Friend</button>
-                    <button class="py-1.5 px-3 rounded-lg text-xs bg-indigo-600 text-white font-bold hover:bg-indigo-500" onclick="initiateCall(2)">Call User</button>
-                </div>
-            </div>
-            <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center font-bold text-purple-300">DC</div>
-                    <div>
-                        <h3 class="font-bold text-slate-100 text-sm">David Chen</h3>
-                        <p class="text-xs text-slate-400">david.chen@enterprise.ai</p>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                    <button class="py-1.5 px-3 rounded-lg text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" onclick="sendFriendRequest(3)">Add Friend</button>
-                    <button class="py-1.5 px-3 rounded-lg text-xs bg-indigo-600 text-white font-bold hover:bg-indigo-500" onclick="initiateCall(3)">Call User</button>
-                </div>
+            <div class="col-span-full item-card text-center py-8 bg-slate-900/70 border border-slate-800 rounded-xl">
+                <div class="text-3xl mb-2">🔒</div>
+                <h3 class="font-bold text-slate-200 text-sm">Authentication Required</h3>
+                <p class="text-xs text-slate-400 mt-1">Please log in to view and connect with other users.</p>
             </div>
         `;
     }
 
-    renderCompletedCalls([
-        {
-            room_id: "strategy-sync-901",
-            sender_name: "Sarah Lin",
-            receiver_name: "Alex Morgan",
-            tokens_consumed: 5,
-            duration_seconds: 1420,
-            status: "COMPLETED",
-            start_time: new Date(Date.now() - 3600000).toISOString(),
-            end_time: new Date().toISOString()
-        }
-    ]);
+    renderCompletedCalls([]);
 }
 
 function escapeHtml(value) {
