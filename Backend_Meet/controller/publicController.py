@@ -796,7 +796,7 @@ If the answer is not available in the context or history, respond exactly:
             try:
                 
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.5-flash",
                     contents=prompt
                 )
                 ai_answer = response.text
