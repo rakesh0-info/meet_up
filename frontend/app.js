@@ -1719,7 +1719,7 @@ function initNotificationWebSocket() {
             try {
                 const payload = JSON.parse(event.data);
                 const notification = payload.notification || payload.data || payload;
-                 handleNotificationWebSocketMessage(data);
+                 handleNotificationWebSocketMessage(payload);
                 if (notification && (notification.notification_type || notification.message || notification.id)) {
                     addRealtimeNotification(notification);
                 }
