@@ -2451,7 +2451,7 @@ document.getElementById('payment-form').addEventListener('submit', async (e) => 
     const { error } = await stripeInstance.confirmPayment({
         elements,
         confirmParams: {
-            return_url: window.location.origin + '/dashboard?payment=success', // Redirect after confirmation
+            return_url: window.location.origin + '/?payment=success', // Redirect after confirmation
         },
     });
 
@@ -2479,7 +2479,7 @@ document.getElementById('payment-form').addEventListener('submit', async (e) => 
     const { error } = await stripeInstance.confirmPayment({
         elements,
         confirmParams: {
-            return_url: window.location.origin + '/dashboard?payment=success', // Redirect URL after payment completion
+            return_url: window.location.origin + '/?payment=success', // Redirect URL after payment completion
         },
     });
 
