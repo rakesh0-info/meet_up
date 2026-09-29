@@ -634,32 +634,136 @@
     </div>
 
     <!-- STRIPE IN-APP PAYMENT MODAL POPUP -->
-      <div id="payment-modal" class="payment-modal">
+   ```html
+<!-- =====================================================
+     STRIPE IN-APP PAYMENT MODAL
+===================================================== -->
+
+<div
+    id="payment-modal"
+    class="payment-modal hidden"
+>
 
     <div class="payment-box">
 
-        <button id="close-payment">×</button>
+        <button
+            type="button"
+            id="close-payment"
+            class="payment-close"
+        >
+            ×
+        </button>
 
-        <h2>Complete Payment</h2>
+        <div class="payment-title">
+            <div class="payment-icon">
+                💳
+            </div>
 
-        <p id="payment-plan"></p>
-        <h3 id="payment-price"></h3>
+            <div>
+                <h2>Complete Payment</h2>
+                <p>Secure payment powered by Stripe</p>
+            </div>
+        </div>
+
+
+        <!-- PLAN SUMMARY -->
+
+        <div class="payment-summary">
+
+            <div class="payment-summary-item">
+                <span>Plan</span>
+                <strong id="payment-plan-name">
+                    Premium
+                </strong>
+            </div>
+
+            <div class="payment-summary-item">
+                <span>Tokens</span>
+                <strong id="payment-token-count">
+                    0 Tokens
+                </strong>
+            </div>
+
+            <div class="payment-summary-item">
+                <span>Amount</span>
+                <strong id="payment-plan-price">
+                    ₹0
+                </strong>
+            </div>
+
+        </div>
+
+
+        <!-- EMAIL -->
+
+        <div class="payment-email-wrapper">
+
+            <label for="payment-email">
+                Email
+            </label>
+
+            <input
+                type="email"
+                id="payment-email"
+                readonly
+            >
+
+        </div>
+
+
+        <!-- STRIPE PAYMENT FORM -->
 
         <form id="payment-form">
 
-            <div id="payment-element"></div>
+            <div
+                id="payment-element"
+                class="stripe-payment-element"
+            ></div>
 
-            <div id="payment-error"></div>
 
-            <button type="submit" id="pay-button">
+            <div
+                id="payment-error"
+                class="payment-error"
+            ></div>
+
+
+            <button
+                type="submit"
+                id="pay-button"
+                class="payment-submit"
+            >
                 Pay Now
             </button>
 
         </form>
 
+
+        <!-- SUCCESS -->
+
+        <div
+            id="payment-success"
+            class="payment-success hidden"
+        >
+
+            <div class="payment-success-icon">
+                ✓
+            </div>
+
+            <h3>
+                Payment Successful
+            </h3>
+
+            <p>
+                Tokens have been added to your wallet.
+            </p>
+
+        </div>
+
     </div>
 
 </div>
+
+
 </div>
 
     <!-- Script integration matching app.js -->

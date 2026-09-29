@@ -1162,31 +1162,7 @@ async function fetchSubscriptions() {
     }
 }
 
-async function subscribePlan(planId) {
-    if (!accessToken) {
-        showToast('Please log in before activating a token plan.', 'info');
-        return;
-    }
 
-    try {
-        const res = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
-        
-        if (res.user_wallet && res.user_wallet.current_balance !== undefined) {
-            updateWalletDisplay(res.user_wallet.current_balance);
-        }
-
-        if (res.checkout_url) {
-            window.location.href = res.checkout_url;
-        } else {
-            showToast("Plan activated successfully! Tokens added to your wallet.", "success");
-            refreshCurrentUserBalance();
-        }
-    } catch (e) {
-        console.warn("Plan activation session handler:", e);
-        showToast("Token plan activated! Tokens credited to your workspace wallet.", "success");
-        updateWalletDisplay(500);
-    }
-}
 
 function updateWalletDisplay(balance) {
     const el = document.getElementById('wallet-token-count');
