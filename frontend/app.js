@@ -33,7 +33,7 @@ function startAutoSpeechToText() {
     }
 
     if (speechRecognizer) {
-        try { speechRecognizer.stop(); } catch(e){}
+        try { speechRecognizer.stop(); } catch (e) { }
     }
 
     if (speechRestartTimer) {
@@ -44,7 +44,7 @@ function startAutoSpeechToText() {
     isExplicitlyStopped = false;
     speechRecognizer = new SpeechRecognition();
     speechRecognizer.continuous = true;
-    speechRecognizer.interimResults = true; 
+    speechRecognizer.interimResults = true;
     speechRecognizer.lang = 'en-US';
 
     speechRecognizer.onresult = (event) => {
@@ -67,7 +67,7 @@ function startAutoSpeechToText() {
 
         if (finalTranscript.trim()) {
             const transcriptText = finalTranscript.trim();
-            
+
             showCaption(speaker, transcriptText);
             appendTranscriptSafe(speaker, transcriptText);
 
@@ -109,7 +109,7 @@ function stopAutoSpeechToText() {
         speechRestartTimer = null;
     }
     if (speechRecognizer) {
-        try { speechRecognizer.stop(); } catch(e){}
+        try { speechRecognizer.stop(); } catch (e) { }
         speechRecognizer = null;
     }
 }
@@ -215,8 +215,8 @@ function showToast(message, type = 'info') {
     const colorClasses = type === 'error'
         ? 'bg-rose-950/95 border-rose-500/40 text-rose-200 shadow-rose-950/50'
         : type === 'success'
-        ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200 shadow-emerald-950/50'
-        : 'bg-slate-900/95 border-slate-700 text-slate-200 shadow-black/50';
+            ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200 shadow-emerald-950/50'
+            : 'bg-slate-900/95 border-slate-700 text-slate-200 shadow-black/50';
 
     toast.className = `${colorClasses} backdrop-blur-xl border px-4 py-3 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2.5 transition-all duration-300 opacity-0 translate-y-2 pointer-events-auto`;
     const icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
@@ -244,7 +244,7 @@ function isRealJwt(token) {
 
 async function request(endpoint, method = 'GET', body = null) {
     const headers = { 'Content-Type': 'application/json' };
-    
+
     // Only send Authorization header if we have a genuine JWT signature.
     // Synthetic demo sessions or public endpoints must not trigger 401 JWT rejection.
     if (isRealJwt(accessToken)) {
@@ -270,7 +270,7 @@ async function request(endpoint, method = 'GET', body = null) {
 
             // Handle invalid / expired credentials gracefully
             const isCredentialError = response.status === 401 && (
-                errorMessage.toLowerCase().includes('credential') || 
+                errorMessage.toLowerCase().includes('credential') ||
                 errorMessage.toLowerCase().includes('token') ||
                 errorMessage.toLowerCase().includes('unauthorized') ||
                 errorMessage.toLowerCase().includes('not authenticated')
@@ -333,7 +333,7 @@ async function handleRegister(event) {
 
     try {
         const res = await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
-        
+
         // Handle different response structures (string, object with message/detail, or fallback)
         let messageText = 'Registration successful!';
         if (typeof res === 'string') {
@@ -341,7 +341,7 @@ async function handleRegister(event) {
         } else if (res && typeof res === 'object') {
             messageText = res.message || res.detail || JSON.stringify(res);
         }
-        
+
         console.log("Registration Response:", res);
         showToast(messageText);
         showOTPScreen();
@@ -379,10 +379,10 @@ async function handleLogin(event) {
         }
     } catch (e) {
         console.warn("Backend login error:", e);
-        
+
         // Check if the backend error (e.g., 400 Bad Request) indicates an unverified user
         const errorMsg = e.detail || e.message || (typeof e === 'string' ? e : '');
-        
+
         if (errorMsg.toLowerCase().includes('unverified') || errorMsg.toLowerCase().includes('otp')) {
             showToast(errorMsg, 'info');
             showOTPScreen();
@@ -422,7 +422,7 @@ async function handleForgotPassword(event) {
     const email = document.getElementById('forgot-email').value.trim();
 
     try {
-        const res=await request(
+        const res = await request(
             `/api/v1/user/forgetpass?email=${encodeURIComponent(email)}`,
             'POST'
         );
@@ -1442,29 +1442,31 @@ function updateNotificationUI(notifications) {
                     class="notif-actions mt-2"
                     onclick="event.stopPropagation()"
                 >
-                    <button
-                        type="button"
-                        class="btn-success"
-                        onclick="respondToCall(
-                            '${String(roomId).replace(/'/g, "\\'")}',
-                            true,
-                            ${Number(n.id)}
-                        )"
-                    >
-                        Accept Call
-                    </button>
+                   <button
+    type="button"
+    class="btn-success"
+    onclick="respondRequest(
+        ${Number(senderId)},
+        'yes',
+        ${Number(n.id)},
+        event
+    )"
+>
+    Accept
+</button>
 
-                    <button
-                        type="button"
-                        class="btn-danger"
-                        onclick="respondToCall(
-                            '${String(roomId).replace(/'/g, "\\'")}',
-                            false,
-                            ${Number(n.id)}
-                        )"
-                    >
-                        Reject
-                    </button>
+                   <button
+    type="button"
+    class="btn-danger"
+    onclick="respondRequest(
+        ${Number(senderId)},
+        'no',
+        ${Number(n.id)},
+        event
+    )"
+>
+    Reject
+</button>
                 </div>
             `;
         }
@@ -1580,7 +1582,7 @@ async function joinAcceptedCall(roomId, notificationId) {
     if (notificationId) {
         try {
             await request(`/api/v1/notifications/${notificationId}/read`, 'PATCH');
-        } catch(e){}
+        } catch (e) { }
     }
     fetchNotifications();
     currentRoomId = roomId;
@@ -1592,7 +1594,7 @@ async function viewSummaryFromNotif(roomId, notificationId) {
     if (notificationId) {
         try {
             await request(`/api/v1/notifications/${notificationId}/read`, 'PATCH');
-        } catch(e){}
+        } catch (e) { }
         fetchNotifications();
     }
     if (roomId) lastRoomId = roomId;
@@ -1796,7 +1798,7 @@ async function joinVideoCallSession(roomId) {
             const tokenData = await request(`/api/v1/call/get-livekit-token?room_id=${encodeURIComponent(roomId)}`, 'GET');
             token = tokenData.token;
             livekitUrl = tokenData.livekit_url || tokenData.livekitUrl || livekitUrl;
-        } catch(tokenErr) {
+        } catch (tokenErr) {
             console.warn("LiveKit token API error:", tokenErr);
         }
 
@@ -1898,7 +1900,7 @@ async function setupLocalMediaFallback() {
             localVid.srcObject = stream;
             localVid.play().catch(e => console.log(e));
         }
-    } catch(err) {
+    } catch (err) {
         console.warn("Camera access not granted or not available in this environment:", err);
     }
 }
@@ -1924,12 +1926,12 @@ function endCallSessionUI() {
     const section = document.getElementById('video-call-section');
     if (section) section.classList.add('hidden');
     const localVid = document.getElementById("localVideo");
-    
+
     if (localVid && localVid.srcObject) {
         localVid.srcObject.getTracks().forEach(track => track.stop());
         localVid.srcObject = null;
     }
-    
+
     document.querySelectorAll('[id^="remoteVideo-"], [id^="remoteAudio-"]').forEach(el => el.remove());
 
     if (currentRoomId || lastRoomId) {
@@ -2003,7 +2005,7 @@ function connectCallWebSocket(roomId) {
         };
 
         callWs.onerror = (err) => console.warn("Call WebSocket error:", err);
-    } catch(err) {
+    } catch (err) {
         console.warn("Call WS init warning:", err);
     }
 }
@@ -2244,7 +2246,7 @@ function initChatWebSocket() {
                     const senderId = Number(chatData.sender_id);
                     const messageText = chatData.message;
                     const sentAt = chatData.sent_at || new Date().toISOString();
-                    
+
                     if (activeChatPartnerId === senderId) {
                         appendChatMessage({
                             sender_id: senderId,
@@ -2281,7 +2283,7 @@ function initChatWebSocket() {
         chatWs.onclose = () => {
             setTimeout(initChatWebSocket, 5000);
         };
-    } catch(err) {
+    } catch (err) {
         console.warn("Chat WS init exception:", err);
     }
 }
@@ -2473,9 +2475,9 @@ function closeDocChatModal() {
     const modal = document.getElementById('doc-chat-modal');
     if (modal) modal.classList.add('hidden');
 }
-function paymentclose(){
-    const modal= document.getElementById('payment-modal')
-    if(modal) modal.classList.add('hidden');
+function paymentclose() {
+    const modal = document.getElementById('payment-modal')
+    if (modal) modal.classList.add('hidden');
 }
 
 async function loadUserDocumentsDropdown() {
@@ -2484,7 +2486,7 @@ async function loadUserDocumentsDropdown() {
 
     try {
         const docs = await request('/api/v1/user/documents', 'GET');
-        select.innerHTML = '<option value="">-- Select Previous Document --</option>' + 
+        select.innerHTML = '<option value="">-- Select Previous Document --</option>' +
             docs.map(d => `<option value="${d.document_id}">${escapeHtml(d.document_name)} (${new Date(d.uploaded_at).toLocaleDateString()})</option>`).join('');
     } catch (e) {
         console.warn("Using sample document choices:", e);
@@ -2755,7 +2757,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // // Handle payment form submission inside the popup (Only ONE listener)
 // document.getElementById('payment-form').addEventListener('submit', async (e) => {
 //     e.preventDefault();
-    
+
 //     const submitButton = document.getElementById('submit-payment');
 //     submitButton.disabled = true;
 //     submitButton.textContent = "Processing...";
@@ -3436,7 +3438,7 @@ async function handlePaymentSubmit(event) {
 //         );
 
 
-       
+
 //     }
 
 
@@ -3550,7 +3552,7 @@ function showPaymentSuccess(
     ) {
 
         loadUserDashboard()
-            .catch(() => {});
+            .catch(() => { });
 
     }
 
@@ -3596,7 +3598,7 @@ function closePaymentModal() {
 
             stripePaymentElement.unmount();
 
-        } catch (e) {}
+        } catch (e) { }
 
         stripePaymentElement = null;
 
