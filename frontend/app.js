@@ -2156,7 +2156,7 @@ function closeDocChatModal() {
     if (modal) modal.classList.add('hidden');
 }
 function paymentclose(){
-    const modal= document.getElementById('close-payment')
+    const modal= document.getElementById('payment-modal')
     if(modal) modal.classList.add('hidden');
 }
 
