@@ -1603,26 +1603,38 @@ async function viewSummaryFromNotif(roomId, notificationId) {
 }
 
 
+
 async function respondRequest(senderId, status, notificationId, event) {
     try {
         if (event) {
             event.stopPropagation();
         }
 
-        // Accept = yes
-        // Reject = no
+        const userId = parseInt(senderId);
+
+        console.log(
+            `Friend request response: ${status}`,
+            'senderId:',
+            userId
+        );
+
+        // -----------------------------------------
+        // ACCEPT / REJECT FRIEND REQUEST
+        // -----------------------------------------
         const response = await request(
             '/api/v1/user/update_request',
             'PUT',
             {
-                sender_id: parseInt(senderId),
+                sender_id: userId,
                 status: status
             }
         );
 
-        console.log('Friend request response:', response);
+        console.log('Update request response:', response);
 
-        // Mark the notification as read/actioned
+        // -----------------------------------------
+        // MARK ORIGINAL NOTIFICATION AS READ
+        // -----------------------------------------
         if (notificationId) {
             await request(
                 `/api/v1/notifications/${notificationId}/read`,
@@ -1630,31 +1642,39 @@ async function respondRequest(senderId, status, notificationId, event) {
             );
         }
 
-        // --------------------------------------------------
+        // -----------------------------------------
         // ACCEPTED
-        // --------------------------------------------------
+        // -----------------------------------------
         if (status === 'yes') {
 
-            console.log('Friend request accepted.');
+            console.log(
+                'Friend request accepted.'
+            );
 
-            // Immediately refresh Pinned Contacts & Teammates
+            // Update RECEIVER's contacts immediately
             if (typeof loadUserDashboard === 'function') {
                 await loadUserDashboard();
+
+                console.log(
+                    'Receiver contacts refreshed.'
+                );
             }
         }
 
-        // --------------------------------------------------
+        // -----------------------------------------
         // REJECTED
-        // --------------------------------------------------
-        else if (status === 'no') {
+        // -----------------------------------------
+        if (status === 'no') {
 
-            console.log('Friend request rejected.');
+            console.log(
+                'Friend request rejected.'
+            );
 
-            // Do NOT load contacts/teammates.
-            // Only notifications need to be refreshed.
+            // IMPORTANT:
+            // Do NOT refresh/add contacts on reject.
         }
 
-        // Refresh notifications in both cases
+        // Refresh notification list
         await fetchNotifications();
 
     } catch (e) {
@@ -1664,6 +1684,8 @@ async function respondRequest(senderId, status, notificationId, event) {
         );
     }
 }
+
+
 
 
 
@@ -1697,6 +1719,7 @@ function initNotificationWebSocket() {
             try {
                 const payload = JSON.parse(event.data);
                 const notification = payload.notification || payload.data || payload;
+                 handleNotificationWebSocketMessage(data);
                 if (notification && (notification.notification_type || notification.message || notification.id)) {
                     addRealtimeNotification(notification);
                 }
@@ -1719,6 +1742,56 @@ function initNotificationWebSocket() {
         console.warn("WebSocket init error:", err);
     }
 }
+
+
+
+function handleNotificationWebSocketMessage(data) {
+
+    console.log(
+        'Realtime notification received:',
+        data
+    );
+
+    // -----------------------------------------
+    // FRIEND REQUEST ACCEPTED
+    // -----------------------------------------
+    const notificationType = String(
+        data.notification_type ||
+        data.type ||
+        data.notification?.notification_type ||
+        ''
+    ).toUpperCase();
+
+    if (notificationType === 'FRIEND_REQUEST_ACCEPTED') {
+
+        console.log(
+            'Friend accepted - refreshing contacts.'
+        );
+
+        // Refresh THIS user's
+        // Pinned Contacts & Teammates
+        if (typeof loadUserDashboard === 'function') {
+
+            loadUserDashboard()
+                .then(() => {
+                    console.log(
+                        'Pinned Contacts updated in realtime.'
+                    );
+                })
+                .catch(error => {
+                    console.error(
+                        'Contact refresh failed:',
+                        error
+                    );
+                });
+        }
+    }
+
+    // Always refresh notifications
+    fetchNotifications();
+}
+
+
 
 async function initiateCall(receiverId) {
     try {
