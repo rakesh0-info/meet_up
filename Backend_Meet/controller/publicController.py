@@ -189,8 +189,14 @@ def handle_failed_payment_intent(payment_intent: stripe.PaymentIntent, db: Sessi
     )
     db.add(failed_sub)
     db.commit()
+
+
+
+
 # ===================================================================
+
 # AUTH ROUTES
+
 # ===================================================================
 @router.post("/login")
 async def login(
@@ -403,53 +409,66 @@ async def pay(
 
 @router.get("/payment/success")
 async def payment_success(
-    session_id: str,
+    payment_intent: Optional[str] = None,
+    payment_intent_client_secret: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    session = stripe.checkout.Session.retrieve(session_id)
+    if not payment_intent:
+        raise HTTPException(status_code=400, detail="Missing payment_intent")
 
-    if session.payment_status == "paid":
-        
-        fulfill_subscription(session, db)
+    # Retrieve the PaymentIntent directly from Stripe to verify status
+    intent = stripe.PaymentIntent.retrieve(payment_intent)
+    
+    if intent.status == "succeeded":
+        # Call your fulfillment helper safely (ensure it checks for duplicates)
+        fulfill_payment_intent(intent, db)
         return {
             "status": "success",
-            "message": "Payment completed. Your wallet and notification were updated.",
+            "message": "Payment verified and tokens added successfully!",
         }
 
-    raise HTTPException(status_code=400, detail="Payment incomplete.")
+    raise HTTPException(status_code=400, detail="Payment not successful yet.")
 
 
 
 @router.post("/stripe/webhook")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+async def stripe_webhook(request: Request):
     payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-    
+    sig_header = request.headers.get("Stripe-Signature")
+    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+    event = None
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
+            payload, sig_header, endpoint_secret
         )
-    except (ValueError, stripe.error.SignatureVerificationError):
-        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError as e:
+        raise HTTPException(status_code=400, detail="Invalid signature")
 
-    # Handle the successful payment intent
-    if event["type"] == "payment_intent.succeeded":
-        payment_intent = event["data"]["object"]
-        metadata = payment_intent.get("metadata", {})
-        
-        user_id = metadata.get("user_id")
-        tokens_to_add = int(metadata.get("tokens_to_add", 0))
-        
-        if user_id and tokens_to_add > 0:
-            # Find user and add tokens to their wallet/balance
-            user = db.query(User).filter(User.id == int(user_id)).first()
-            if user:
-                user.token_balance += tokens_to_add
-                db.commit()
+    # Create a fresh DB session for the webhook thread
+    db = SessionLocal()
+    try:
+        if event["type"] == "payment_intent.succeeded":
+            payment_intent = event["data"]["object"]
+            # Call your fulfillment function here!
+            fulfill_payment_intent(payment_intent, db)
+            print(f"Successfully processed webhook for PaymentIntent: {payment_intent.get('id')}")
+
+        elif event["type"] == "payment_intent.payment_failed":
+            payment_intent = event["data"]["object"]
+            handle_failed_payment_intent(payment_intent, db)
+            print(f"Handled failed payment for PaymentIntent: {payment_intent.get('id')}")
+
+    except Exception as e:
+        db.rollback()
+        print(f"Webhook processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
     return {"status": "success"}
-
-
 
 @router.post("/send_friend_request")
 async def send_friend_request(
