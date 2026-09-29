@@ -385,7 +385,7 @@ async def pay(
                     "currency": plan.currency.lower() if plan.currency else "inr",
                     "product_data": {
                         "name": plan.name,
-                        "description": plan.description or "AI Token Compute Tier",
+                        # "description": plan.description or "AI Token Compute Tier",
                     },
                     "unit_amount": int(plan.amount_to_pay * 100),
                 },
