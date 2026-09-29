@@ -2375,8 +2375,8 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 
-let stripeInstance = Stripe('pk_test_51UE1SKKyhs2eWHloSrFvMxArllFqC7kjfSP62womqDKXn1x2gk5efZvm6tQwVejjxwTQ0nV4GvZBtbShuCQryhj900zRR1iJIa'); // Replace with your publishable key
-let elements;
+// let stripeInstance = Stripe('pk_test_51UE1SKKyhs2eWHloSrFvMxArllFqC7kjfSP62womqDKXn1x2gk5efZvm6tQwVejjxwTQ0nV4GvZBtbShuCQryhj900zRR1iJIa'); // Replace with your publishable key
+// let elements;
 
 
 
@@ -2781,158 +2781,122 @@ async function handlePaymentSubmit(event) {
 
     event.preventDefault();
 
-
-    if (!stripeElements) {
-
-        showToast(
-            'Payment is not initialized.',
-            'error'
-        );
-
-        return;
-    }
-
-
     const button =
-        document.getElementById(
-            'pay-button'
-        );
+        document.getElementById("pay-button");
 
     const errorBox =
-        document.getElementById(
-            'payment-error'
-        );
-
+        document.getElementById("payment-error");
 
     if (errorBox) {
-
-        errorBox.textContent = '';
-
+        errorBox.textContent = "";
     }
-
 
     if (button) {
-
         button.disabled = true;
-
-        button.textContent =
-            'Processing...';
-
+        button.textContent = "Processing...";
     }
-
 
     try {
 
         /*
          * Validate Payment Element
          */
-
-        const submitResult =
+        const { error: submitError } =
             await stripeElements.submit();
 
-
-        if (submitResult.error) {
-
-            throw submitResult.error;
-
+        if (submitError) {
+            throw submitError;
         }
 
 
         /*
-         * Confirm Payment
-         *
-         * redirect: if_required means
-         * normal card payments remain
-         * inside your application.
+         * Confirm payment
          */
-
-        const result =
+        const { error } =
             await stripe.confirmPayment({
 
-                elements:
-                    stripeElements,
+                elements: stripeElements,
 
                 confirmParams: {
-
                     payment_method_data: {
-
                         billing_details: {
-
                             email:
-                                currentEmail || ''
-
+                                currentEmail || ""
                         }
-
                     }
-
                 },
 
-                redirect:
-                    'if_required'
-
+                redirect: "if_required"
             });
 
 
-        if (result.error) {
+        /*
+         * Stripe returned an actual error
+         */
+        if (error) {
 
-            throw result.error;
+            console.error(
+                "Stripe payment error:",
+                error
+            );
 
+            if (errorBox) {
+                errorBox.textContent =
+                    error.message ||
+                    "Payment failed.";
+            }
+
+            if (button) {
+                button.disabled = false;
+                button.textContent = "Pay Now";
+            }
+
+            return;
         }
 
 
         /*
-         * Payment has been confirmed.
+         * IMPORTANT:
          *
-         * DO NOT add tokens here.
+         * At this point payment confirmation
+         * was successful.
          *
-         * Webhook adds tokens.
+         * DO NOT call confirmPayment again.
+         *
+         * Webhook will credit tokens.
          */
 
         if (button) {
-
             button.textContent =
-                'Payment Processing...';
-
+                "Payment Processing...";
         }
 
 
         /*
-         * Wait until webhook has
-         * credited the wallet.
+         * Wait for webhook to update wallet
          */
-
         await waitForWalletUpdate();
 
 
     } catch (error) {
 
         console.error(
-            'Stripe payment error:',
+            "Stripe payment error:",
             error
         );
 
-
         if (errorBox) {
-
             errorBox.textContent =
                 error.message ||
-                'Payment failed.';
-
+                "Payment failed.";
         }
-
 
         if (button) {
-
             button.disabled = false;
-
-            button.textContent =
-                'Pay Now';
-
+            button.textContent = "Pay Now";
         }
-
     }
 }
-
 
 /* =====================================================
    WAIT FOR WEBHOOK / WALLET UPDATE
@@ -2940,17 +2904,21 @@ async function handlePaymentSubmit(event) {
 
 async function waitForWalletUpdate() {
 
-    const maxAttempts = 15;
+    const maxAttempts = 20;
 
     let previousBalance = null;
 
+
+    /*
+     * Get current wallet balance
+     */
 
     try {
 
         const initialUser =
             await request(
-                '/api/v1/user/me',
-                'GET'
+                "/api/v1/user/me",
+                "GET"
             );
 
         previousBalance =
@@ -2961,12 +2929,16 @@ async function waitForWalletUpdate() {
     } catch (error) {
 
         console.warn(
-            'Could not get initial balance:',
+            "Could not get initial wallet balance:",
             error
         );
 
     }
 
+
+    /*
+     * Wait for Stripe webhook
+     */
 
     for (
         let attempt = 0;
@@ -2987,8 +2959,8 @@ async function waitForWalletUpdate() {
 
             const user =
                 await request(
-                    '/api/v1/user/me',
-                    'GET'
+                    "/api/v1/user/me",
+                    "GET"
                 );
 
 
@@ -2998,30 +2970,40 @@ async function waitForWalletUpdate() {
                 );
 
 
+            console.log(
+                `Wallet check ${attempt + 1}/${maxAttempts}:`,
+                newBalance
+            );
+
+
             /*
-             * Webhook credited tokens
+             * Wallet increased
+             *
+             * This means webhook has credited
+             * the tokens.
              */
 
             if (
                 previousBalance !== null &&
-                newBalance >
-                    previousBalance
+                newBalance > previousBalance
             ) {
 
                 updateWalletDisplay(
                     newBalance
                 );
 
+
                 showPaymentSuccess(
                     newBalance
                 );
+
 
                 return true;
             }
 
 
             /*
-             * Also update UI
+             * Keep UI updated
              */
 
             updateWalletDisplay(
@@ -3031,24 +3013,28 @@ async function waitForWalletUpdate() {
         } catch (error) {
 
             console.warn(
-                'Wallet refresh attempt failed:',
+                "Wallet refresh failed:",
                 error
             );
 
         }
-
     }
 
 
     /*
-     * Payment succeeded but webhook
-     * has not appeared yet.
+     * Payment was confirmed but webhook
+     * hasn't updated the wallet yet.
      */
 
-    showToast(
-        'Payment received. Your wallet will update shortly.',
-        'info'
+    console.warn(
+        "Stripe payment confirmed, but webhook wallet update is still pending."
     );
+
+
+    const button =
+        document.getElementById(
+            "pay-button"
+        );
 
 
     if (button) {
@@ -3056,9 +3042,15 @@ async function waitForWalletUpdate() {
         button.disabled = false;
 
         button.textContent =
-            'Pay Now';
+            "Payment Processing...";
 
     }
+
+
+    showToast(
+        "Payment received. Your wallet will update shortly.",
+        "info"
+    );
 
 
     return false;
