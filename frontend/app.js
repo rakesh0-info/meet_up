@@ -422,10 +422,24 @@ async function handleForgotPassword(event) {
     const email = document.getElementById('forgot-email').value.trim();
 
     try {
-        await request(
+        const res=await request(
             `/api/v1/user/forgetpass?email=${encodeURIComponent(email)}`,
             'POST'
         );
+        const responseString = typeof res === 'string' ? res : (res.message || res.detail || '');
+
+        if (responseString.toLowerCase().includes('unverified')) {
+            showToast(responseString);
+            showOTPScreen();
+        } else if (res && res.access_token) {
+            accessToken = res.access_token;
+            localStorage.setItem('access_token', accessToken);
+            currentUserRole = res.role || 'user';
+            showToast('Signed in successfully!', 'success');
+            await loadDashboard();
+        } else {
+            showToast(responseString || 'Login successful!');
+        }
         currentEmail = email;
         document.getElementById('reset-otp-email').innerText = email;
         document.getElementById('password-reset-email-screen').classList.add('hidden');
