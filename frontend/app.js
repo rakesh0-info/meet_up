@@ -2440,7 +2440,7 @@ async function openPaymentPopup(planId) {
     }
 }
 
-// Handle payment form submission inside the popup
+// Handle payment form submission inside the popup (Only ONE listener)
 document.getElementById('payment-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -2451,7 +2451,7 @@ document.getElementById('payment-form').addEventListener('submit', async (e) => 
     const { error } = await stripeInstance.confirmPayment({
         elements,
         confirmParams: {
-            return_url: window.location.origin + '/?payment=success', // Redirect after confirmation
+            return_url: window.location.origin + '/?payment=success', 
         },
     });
 
@@ -2467,29 +2467,4 @@ function closePaymentModal() {
     const submitButton = document.getElementById('submit-payment');
     submitButton.disabled = false;
     submitButton.textContent = "Pay Now";
-}
-// 4. Handle form submission inside the popup
-document.getElementById('payment-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const submitButton = document.getElementById('submit-payment');
-    submitButton.disabled = true;
-    submitButton.textContent = "Processing...";
-
-    const { error } = await stripeInstance.confirmPayment({
-        elements,
-        confirmParams: {
-            return_url: window.location.origin + '/?payment=success', // Redirect URL after payment completion
-        },
-    });
-
-    if (error) {
-        showToast(error.message, "error");
-        submitButton.disabled = false;
-        submitButton.textContent = "Pay Now";
-    }
-});
-
-function closePaymentModal() {
-    document.getElementById('payment-modal').classList.add('hidden');
 }

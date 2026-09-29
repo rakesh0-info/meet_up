@@ -424,28 +424,30 @@ async def payment_success(
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
-
+    
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
     except (ValueError, stripe.error.SignatureVerificationError):
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Stripe signature",
-        )
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
-    event_type = event["type"]
-    intent_object = event["data"]["object"]
-
-    # Handle PaymentIntent lifecycle hooks instead of Checkout Sessions
-    if event_type == "payment_intent.succeeded":
-        fulfill_payment_intent(intent_object, db)
-    elif event_type == "payment_intent.payment_failed":
-        handle_failed_payment_intent(intent_object, db)
+    # Handle the successful payment intent
+    if event["type"] == "payment_intent.succeeded":
+        payment_intent = event["data"]["object"]
+        metadata = payment_intent.get("metadata", {})
+        
+        user_id = metadata.get("user_id")
+        tokens_to_add = int(metadata.get("tokens_to_add", 0))
+        
+        if user_id and tokens_to_add > 0:
+            # Find user and add tokens to their wallet/balance
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                user.token_balance += tokens_to_add
+                db.commit()
 
     return {"status": "success"}
-
 
 
 
