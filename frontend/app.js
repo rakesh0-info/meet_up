@@ -2858,52 +2858,93 @@ async function handlePaymentSubmit(event) {
     const errorBox =
         document.getElementById("payment-error");
 
+    /*
+     * Clear previous error
+     */
     if (errorBox) {
+
         errorBox.textContent = "";
+
+        errorBox.classList.add("hidden");
     }
 
+
+    /*
+     * Disable button while Stripe processes payment
+     */
     if (button) {
+
         button.disabled = true;
-        button.textContent = "Processing...";
+
+        button.textContent =
+            "Processing...";
     }
+
 
     try {
 
         /*
-         * Validate Payment Element
+         * =====================================================
+         * STEP 1
+         * Validate Stripe Payment Element
+         * =====================================================
          */
-        const { error: submitError } =
+
+        const {
+            error: submitError
+        } =
             await stripeElements.submit();
 
+
         if (submitError) {
+
             throw submitError;
         }
 
 
         /*
-         * Confirm payment
+         * =====================================================
+         * STEP 2
+         * CONFIRM PAYMENT
+         * =====================================================
          */
-        const { error } =
+
+        const {
+            error
+        } =
             await stripe.confirmPayment({
 
-                elements: stripeElements,
+                elements:
+                    stripeElements,
 
                 confirmParams: {
+
                     payment_method_data: {
+
                         billing_details: {
+
                             email:
                                 currentEmail || ""
                         }
                     }
                 },
 
-                redirect: "if_required"
+                /*
+                 * Keep normal card payment inside
+                 * your application.
+                 */
+                redirect:
+                    "if_required"
             });
 
 
         /*
+         * =====================================================
+         * STEP 3
          * Stripe returned an actual error
+         * =====================================================
          */
+
         if (error) {
 
             console.error(
@@ -2911,42 +2952,55 @@ async function handlePaymentSubmit(event) {
                 error
             );
 
+
             if (errorBox) {
+
                 errorBox.textContent =
                     error.message ||
                     "Payment failed.";
+
+                errorBox.classList.remove(
+                    "hidden"
+                );
             }
 
+
             if (button) {
+
                 button.disabled = false;
-                button.textContent = "Pay Now";
+
+                button.textContent =
+                    "Pay Now";
             }
+
 
             return;
         }
 
 
         /*
-         * IMPORTANT:
+         * =====================================================
+         * STEP 4
          *
-         * At this point payment confirmation
-         * was successful.
+         * PAYMENT CONFIRMED
          *
-         * DO NOT call confirmPayment again.
-         *
-         * Webhook will credit tokens.
+         * DO NOT CHECK WALLET
+         * DO NOT WAIT FOR WEBHOOK
+         * DO NOT CALL /me
+         * DO NOT CONFIRM PAYMENT AGAIN
+         * =====================================================
          */
 
-        if (button) {
-            button.textContent =
-                "Payment Processing...";
-        }
+        console.log(
+            "Stripe payment confirmed successfully."
+        );
 
 
         /*
-         * Wait for webhook to update wallet
+         * Immediately show SUCCESS
          */
-        await waitForWalletUpdate();
+
+        showPaymentSuccess();
 
 
     } catch (error) {
@@ -2956,128 +3010,137 @@ async function handlePaymentSubmit(event) {
             error
         );
 
+
         if (errorBox) {
+
             errorBox.textContent =
                 error.message ||
                 "Payment failed.";
+
+            errorBox.classList.remove(
+                "hidden"
+            );
         }
 
+
         if (button) {
+
             button.disabled = false;
-            button.textContent = "Pay Now";
+
+            button.textContent =
+                "Pay Now";
         }
     }
 }
-
 /* =====================================================
    WAIT FOR WEBHOOK / WALLET UPDATE
 ===================================================== */
 
-async function waitForWalletUpdate() {
+// async function waitForWalletUpdate() {
 
-    const maxAttempts = 20;
-
-
-    /*
-     * =========================================================
-     * IMPORTANT:
-     *
-     * This value was captured BEFORE the PaymentIntent was
-     * created.
-     *
-     * Example:
-     *
-     * paymentStartingBalance = 210
-     *
-     * After webhook:
-     *
-     * newBalance = 240
-     *
-     * Therefore:
-     *
-     * 240 > 210
-     *
-     * Payment completed and tokens were credited.
-     * =========================================================
-     */
-
-    const startingBalance =
-        paymentStartingBalance;
+//     const maxAttempts = 20;
 
 
-    console.log(
-        "Waiting for webhook.",
-        "Starting wallet balance:",
-        startingBalance
-    );
+//     /*
+//      * =========================================================
+//      * IMPORTANT:
+//      *
+//      * This value was captured BEFORE the PaymentIntent was
+//      * created.
+//      *
+//      * Example:
+//      *
+//      * paymentStartingBalance = 210
+//      *
+//      * After webhook:
+//      *
+//      * newBalance = 240
+//      *
+//      * Therefore:
+//      *
+//      * 240 > 210
+//      *
+//      * Payment completed and tokens were credited.
+//      * =========================================================
+//      */
+
+//     const startingBalance =
+//         paymentStartingBalance;
 
 
-    /*
-     * =========================================================
-     * Check wallet every second
-     * =========================================================
-     */
+//     console.log(
+//         "Waiting for webhook.",
+//         "Starting wallet balance:",
+//         startingBalance
+//     );
 
-    for (
-        let attempt = 0;
-        attempt < maxAttempts;
-        attempt++
-    ) {
 
-        /*
-         * Wait 1 second
-         */
+//     /*
+//      * =========================================================
+//      * Check wallet every second
+//      * =========================================================
+//      */
 
-        await new Promise(
-            resolve =>
-                setTimeout(
-                    resolve,
-                    1000
-                )
-        );
+//     for (
+//         let attempt = 0;
+//         attempt < maxAttempts;
+//         attempt++
+//     ) {
+
+//         /*
+//          * Wait 1 second
+//          */
+
+//         await new Promise(
+//             resolve =>
+//                 setTimeout(
+//                     resolve,
+//                     1000
+//                 )
+//         );
 
 
        
-    }
+//     }
 
 
-    /*
-     * =========================================================
-     * 20 seconds passed.
-     *
-     * Stripe already confirmed the payment, but the frontend
-     * did not detect the wallet increase.
-     * =========================================================
-     */
+//     /*
+//      * =========================================================
+//      * 20 seconds passed.
+//      *
+//      * Stripe already confirmed the payment, but the frontend
+//      * did not detect the wallet increase.
+//      * =========================================================
+//      */
 
-    console.warn(
-        "Stripe payment confirmed, but wallet update was not detected within 20 seconds."
-    );
-
-
-    showToast(
-        "Payment received. Your wallet is still being updated.",
-        "info"
-    );
+//     console.warn(
+//         "Stripe payment confirmed, but wallet update was not detected within 20 seconds."
+//     );
 
 
-    const button =
-        document.getElementById(
-            "pay-button"
-        );
+//     showToast(
+//         "Payment received. Your wallet is still being updated.",
+//         "info"
+//     );
 
 
-    if (button) {
-
-        button.disabled = false;
-
-        button.textContent =
-            "Payment Processing...";
-    }
+//     const button =
+//         document.getElementById(
+//             "pay-button"
+//         );
 
 
-    return false;
-}
+//     if (button) {
+
+//         button.disabled = false;
+
+//         button.textContent =
+//             "Payment Processing...";
+//     }
+
+
+//     return false;
+// }
 
 
 /* =====================================================
