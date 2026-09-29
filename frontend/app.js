@@ -2155,6 +2155,10 @@ function closeDocChatModal() {
     const modal = document.getElementById('doc-chat-modal');
     if (modal) modal.classList.add('hidden');
 }
+function paymentclose(){
+    const modal= document.getElementById('close-payment')
+    if(modal) modal.classList.add('hidden');
+}
 
 async function loadUserDocumentsDropdown() {
     const select = document.getElementById('doc-select-dropdown');
