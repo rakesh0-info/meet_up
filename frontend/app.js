@@ -332,21 +332,28 @@ async function handleRegister(event) {
     const password = document.getElementById('reg-password').value;
 
     try {
-         const res=await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
-       const messageText = typeof res === 'string' ? res : (res.message || 'Registration successful!');
+        const res = await request('/api/v1/user/register', 'POST', { name, email: currentEmail, password });
+        
+        // Handle different response structures (string, object with message/detail, or fallback)
+        let messageText = 'Registration successful!';
+        if (typeof res === 'string') {
+            messageText = res;
+        } else if (res && typeof res === 'object') {
+            messageText = res.message || res.detail || JSON.stringify(res);
+        }
         
         console.log("Registration Response:", res);
         showToast(messageText);
         showOTPScreen();
 
-        showOTPScreen();
     } catch (e) {
         console.error(e);
-        showToast("Registration submitted. Verify OTP sent to " + currentEmail, 'info');
+        // If it throws an error (e.g., if FastAPI raises an HTTPException with status code >= 400)
+        const errorMsg = e.detail || e.message || "Registration submitted. Verify OTP sent to " + currentEmail;
+        showToast(errorMsg, 'info');
         showOTPScreen();
     }
 }
-
 async function handleLogin(event) {
     event.preventDefault();
     currentEmail = document.getElementById('login-email').value;
