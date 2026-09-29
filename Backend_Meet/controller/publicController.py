@@ -105,90 +105,90 @@ router = APIRouter(prefix="/api/v1/user")
 # ===================================================================
 # PAYMENT HELPER FUNCTIONS
 # ===================================================================
-def fulfill_subscription(session: stripe.checkout.Session, db: Session):
-    session_dict = session.to_dict() if hasattr(session, "to_dict") else dict(session)
-    session_id = session_dict.get("id")
-    metadata = session_dict.get("metadata", {})
+def fulfill_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
+    intent_dict = payment_intent.to_dict() if hasattr(payment_intent, "to_dict") else dict(payment_intent)
+    intent_id = intent_dict.get("id")
+    metadata = intent_dict.get("metadata", {})
 
-    user_id = int(metadata.get("user_id"))
-    tokens_to_add = int(metadata.get("tokens_to_add", 0))
-    amount_in_paise = session.amount_total
-    amount_in_rupees = amount_in_paise / 100.0 if amount_in_paise else 0.0
+    user_id_str = metadata.get("user_id")
+    tokens_to_add_str = metadata.get("tokens_to_add", "0")
+    
+    if not user_id_str:
+        return
 
-    currency = session.currency.upper()
+    user_id = int(user_id_str)
+    tokens_to_add = int(tokens_to_add_str)
+    
+    amount_received = intent_dict.get("amount_received", 0)
+    amount_in_units = amount_received / 100.0 if amount_received else 0.0
 
-  
+    # Prevent duplicate fulfillment using stripe_payment_id
     existing_sub = (
         db.query(Video_Call_Subscription)
-        .filter(Video_Call_Subscription.stripe_payment_id == session_id)
+        .filter(Video_Call_Subscription.stripe_payment_id == intent_id)
         .first()
     )
 
     if existing_sub:
         return  
 
-   
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     user.token_balance += tokens_to_add
 
-   
     new_subscription = Video_Call_Subscription(
         user_id=user.id,
-        
-        stripe_payment_id=session_id,
+        stripe_payment_id=intent_id,
         token_amount=tokens_to_add,
         status=PlanStatus.ACTIVE
     )
 
     create_notification(
-        db= db,
-        user_id = user_id,
+        db=db,
+        user_id=user_id,
         sender_id=user_id,
-        message= f"Payment completed  total pay:{amount_in_rupees} , total token : {tokens_to_add}",
-        notification_type= "SUCESS PAYMENT",
+        message=f"Payment completed! Total paid: {amount_in_units}, Total tokens added: {tokens_to_add}",
+        notification_type="SUCCESS PAYMENT",
     )
 
     db.add(new_subscription)
     db.commit()
 
 
+def handle_failed_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
+    intent_dict = payment_intent.to_dict() if hasattr(payment_intent, "to_dict") else dict(payment_intent)
+    intent_id = intent_dict.get("id")
+    metadata = intent_dict.get("metadata", {})
+    user_id_str = metadata.get("user_id")
 
-def handle_failed_payment(session: stripe.checkout.Session, db: Session):
-    session_dict = session.to_dict() if hasattr(session, "to_dict") else dict(session)
-    session_id = session_dict.get("id")
-    metadata = session_dict.get("metadata", {})
-    user_id = metadata.get("user_id")
-
-    if not user_id:
+    if not user_id_str:
         return
 
+    user_id = int(user_id_str)
+
     if db.query(Video_Call_Subscription).filter(
-        Video_Call_Subscription.stripe_payment_id == session_id
+        Video_Call_Subscription.stripe_payment_id == intent_id
     ).first():
         return
 
     failed_sub = Video_Call_Subscription(
-        user_id=int(user_id),
-
-        stripe_payment_id=session_id,
+        user_id=user_id,
+        stripe_payment_id=intent_id,
         token_amount=0,
         status=PlanStatus.EXPIRED
     )
 
     create_notification(
-            db= db,
-            user_id = user_id,
-            sender_id=user_id,
-            message= f"pyement Faild",
-            notification_type= "FAILD PAYMENT",
-        )
+        db=db,
+        user_id=user_id,
+        sender_id=user_id,
+        message="Payment failed.",
+        notification_type="FAILED PAYMENT",
+    )
     db.add(failed_sub)
     db.commit()
-
-
 # ===================================================================
 # AUTH ROUTES
 # ===================================================================
@@ -368,32 +368,18 @@ async def pay(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER)),
 ):
-    plan = (
-        db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.id == plan_id)
-        .first()
-    )
-
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
     if not plan:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail="Subscription plan not found",
-        )
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
 
-    price_id = plan.stripe_price_id
-    if not price_id:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="Stripe price ID is missing for this plan",
-        )
+    if not plan.amount_to_pay:
+        raise HTTPException(status_code=400, detail="Invalid plan amount")
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{"price": price_id, "quantity": 1}],
-            mode="payment",
-            success_url=f"{BASE_URL}/api/v1/user/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{BASE_URL}/api/v1/user/payment/cancel",
+        # Create a Stripe PaymentIntent instead of a Checkout Session
+        intent = stripe.PaymentIntent.create(
+            amount=int(plan.amount_to_pay * 100),  # Convert to smallest currency unit (e.g., paise/cents)
+            currency=plan.currency.lower() if plan.currency else "inr",
             metadata={
                 "user_id": str(current_user.id),
                 "plan_id": str(plan.id),
@@ -401,26 +387,18 @@ async def pay(
             },
         )
     except stripe.StripeError as e:
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Stripe error: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
 
     return {
-        "message": "Copy and open the checkout URL to complete payment.",
-        "checkout_url": checkout_session.url,
+        "client_secret": intent.client_secret,
         "plan": {
             "id": plan.id,
             "name": plan.name,
             "tokens_to_receive": plan.token_amount,
             "amount_to_pay": plan.amount_to_pay,
-            "currency": plan.currency,
-        },
-        "user_wallet": {
-            "current_balance": current_user.token_balance,
-            "balance_after_purchase": current_user.token_balance + plan.token_amount,
         }
     }
+
 
 
 @router.get("/payment/success")
@@ -440,7 +418,6 @@ async def payment_success(
 
     raise HTTPException(status_code=400, detail="Payment incomplete.")
 
-
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
@@ -457,14 +434,17 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         )
 
     event_type = event["type"]
-    session = event["data"]["object"]
+    intent_object = event["data"]["object"]
 
-    if event_type == "checkout.session.completed":
-        fulfill_subscription(session, db)
-    elif event_type == "checkout.session.async_payment_failed":
-        handle_failed_payment(session, db)
+    # Handle PaymentIntent lifecycle hooks instead of Checkout Sessions
+    if event_type == "payment_intent.succeeded":
+        fulfill_payment_intent(intent_object, db)
+    elif event_type == "payment_intent.payment_failed":
+        handle_failed_payment_intent(intent_object, db)
 
     return {"status": "success"}
+
+
 
 
 @router.post("/send_friend_request")

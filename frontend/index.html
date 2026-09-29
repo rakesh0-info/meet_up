@@ -39,6 +39,8 @@
     </script>
     <!-- LiveKit Client SDK -->
     <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <!-- Stripe JavaScript SDK -->
+    <script src="https://js.stripe.com/v3/"></script>
 </head>
 
 <body
@@ -539,117 +541,6 @@
                             Select Starter Tier
                         </button>
                     </div>
-
-                    <!-- Tier 2: Pro Team Tier (MOST POPULAR - AUTO SELECTED)
-                    <div class="enterprise-plan-card most-popular selected" data-plan-id="2" data-is-default-popular="true" onclick="selectPlanCard(2, event)">
-                        <span class="popular-badge">⭐ Most Popular</span>
-                        <div>
-                            <div class="plan-radio-row">
-                                <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/25 px-2.5 py-0.5 rounded-full border border-indigo-500/40">
-                                    Professional Tier
-                                </span>
-                                <span class="plan-radio-pill">
-                                    <span class="plan-radio-dot"></span>
-                                    <span class="radio-label">Auto-Selected</span>
-                                </span>
-                            </div>
-                            <h3 class="font-bold text-xl text-slate-100 mt-1 flex items-center gap-2">
-                                Pro Team Tier
-                            </h3>
-                            <p class="text-xs text-indigo-300/90 mt-0.5">Continuous team transcription & document intelligence</p>
-
-                            <div class="my-4 pb-4 border-b border-indigo-500/25">
-                                <div class="flex items-baseline gap-1.5">
-                                    <span class="text-3xl font-extrabold text-white">₹ 799</span>
-                                    <span class="text-xs text-slate-400 font-normal">/ package</span>
-                                    <span class="ml-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">Save 20%</span>
-                                </div>
-                                <div class="plan-token-pill">
-                                    <span>🪙</span> 500 AI Compute Tokens <span class="text-[11px] opacity-90 font-semibold">(Best Value • ₹1.60 / token)</span>
-                                </div>
-                            </div>
-
-                            <ul class="plan-features-list">
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Priority real-time WebRTC LiveKit audio & video stream</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Intelligent executive call recap & action item extraction</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Multi-document cross-analysis & citations (PDF, Docx, Code)</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Automatic low-token notification alerts (&lt;20 tokens)</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Priority queue for Gemini AI inference models</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button class="enterprise-buy-btn popular-btn mt-4" onclick="subscribePlan(2); event.stopPropagation();">
-                            ⚡ Activate Selected Plan (Instant Refill) →
-                        </button>
-                    </div>
-
-                    <!-- Tier 3: Enterprise Unlimited -->
-                    <!-- <div class="enterprise-plan-card" data-plan-id="3" onclick="selectPlanCard(3, event)">
-                        <div>
-                            <div class="plan-radio-row">
-                                <span class="text-[11px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/15 px-2.5 py-0.5 rounded-full border border-purple-500/30">
-                                    Enterprise Scale
-                                </span>
-                                <span class="plan-radio-pill">
-                                    <span class="plan-radio-dot"></span>
-                                    <span class="radio-label">Select Plan</span>
-                                </span>
-                            </div>
-                            <h3 class="font-bold text-lg text-slate-100 mt-1">Enterprise Scale</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Continuous team transcription with audio archiving</p>
-
-                            <div class="my-4 pb-4 border-b border-slate-800/80">
-                                <div class="flex items-baseline gap-1.5">
-                                    <span class="text-3xl font-extrabold text-white">₹ 2,999</span>
-                                    <span class="text-xs text-slate-400 font-normal">/ package</span>
-                                    <span class="ml-1.5 text-[10px] font-bold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-full border border-purple-500/30">Max Volume</span>
-                                </div>
-                                <div class="plan-token-pill">
-                                    <span>🪙</span> 2,500 AI Compute Tokens <span class="text-[11px] opacity-75 font-normal">(₹1.20 / token)</span>
-                                </div>
-                            </div>
-
-                            <ul class="plan-features-list">
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Unlimited concurrent video meeting rooms</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>High-volume batch document embeddings & neural search</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Comprehensive admin usage telemetry & audit logs</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Dedicated low-latency WebSocket routing</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Custom organizational role-based access limits</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button class="enterprise-buy-btn mt-4" onclick="subscribePlan(3); event.stopPropagation();">
-                            Select Enterprise Scale
-                        </button>
-                    </div> --> -->
                 </div>
 
                 <!-- Enterprise Trust & Guarantee Banner -->
@@ -739,6 +630,23 @@
                     class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
                 <button type="submit" class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Send</button>
             </form>
+        </div>
+    </div>
+
+    <!-- STRIPE IN-APP PAYMENT MODAL POPUP -->
+    <div id="payment-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md relative shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-4">Complete Your Payment</h3>
+            
+            <!-- Stripe Payment Element mounts here -->
+            <form id="payment-form">
+                <div id="payment-element" class="mb-4"></div>
+                <button id="submit-payment" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl transition-all shadow-md">
+                    Pay Now
+                </button>
+            </form>
+            
+            <button onclick="closePaymentModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">✕</button>
         </div>
     </div>
 

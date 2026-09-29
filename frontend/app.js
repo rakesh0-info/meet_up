@@ -2397,3 +2397,52 @@ window.addEventListener('DOMContentLoaded', () => {
         console.warn("Auto-login error with stored token:", err);
     });
 });
+
+
+let stripeInstance = Stripe('pk_test_51UE1SKKyhs2eWHloSrFvMxArllFqC7kjfSP62womqDKXn1x2gk5efZvm6tQwVejjxwTQ0nV4GvZBtbShuCQryhj900zRR1iJIa'); // Replace with your publishable key
+let elements;
+
+async function openPaymentPopup(planId) {
+    try {
+        // 1. Call your updated backend endpoint
+        const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
+        const clientSecret = response.client_secret;
+
+        // 2. Show the modal
+        document.getElementById('payment-modal').classList.remove('hidden');
+
+        // 3. Initialize Stripe Elements
+        elements = stripeInstance.elements({ clientSecret });
+        const paymentElement = elements.create('payment');
+        paymentElement.mount('#payment-element');
+
+    } catch (err) {
+        showToast("Failed to initialize payment modal.", "error");
+    }
+}
+
+// 4. Handle form submission inside the popup
+document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submitButton = document.getElementById('submit-payment');
+    submitButton.disabled = true;
+    submitButton.textContent = "Processing...";
+
+    const { error } = await stripeInstance.confirmPayment({
+        elements,
+        confirmParams: {
+            return_url: window.location.origin + '/dashboard?payment=success', // Redirect URL after payment completion
+        },
+    });
+
+    if (error) {
+        showToast(error.message, "error");
+        submitButton.disabled = false;
+        submitButton.textContent = "Pay Now";
+    }
+});
+
+function closePaymentModal() {
+    document.getElementById('payment-modal').classList.add('hidden');
+}
