@@ -38,7 +38,7 @@ from enums.plan_status import status as PlanStatus
 from enums.roleEnum import Role
 from dataBase_Model.document_rag import DocumentMessage
 
-from database import get_db
+from database import SessionLocal, get_db
 from jwts.jwt_config import ALGORITHM, SECRET_KEY, create_access_token, create_refresh_token
 from jwts.jwt_response_schemas import Token
 from mail.sendmail import send_mail
@@ -104,11 +104,10 @@ router = APIRouter(prefix="/api/v1/user")
 
 # ===================================================================
 # PAYMENT HELPER FUNCTIONS
-# ===================================================================
-def fulfill_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
-    intent_dict = payment_intent.to_dict() if hasattr(payment_intent, "to_dict") else dict(payment_intent)
-    intent_id = intent_dict.get("id")
-    metadata = intent_dict.get("metadata", {})
+def fulfill_checkout_session(session: stripe.checkout.Session, db: Session):
+    session_dict = session.to_dict() if hasattr(session, "to_dict") else dict(session)
+    session_id = session_dict.get("id")
+    metadata = session_dict.get("metadata", {})
 
     user_id_str = metadata.get("user_id")
     tokens_to_add_str = metadata.get("tokens_to_add", "0")
@@ -119,13 +118,13 @@ def fulfill_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
     user_id = int(user_id_str)
     tokens_to_add = int(tokens_to_add_str)
     
-    amount_received = intent_dict.get("amount_received", 0)
-    amount_in_units = amount_received / 100.0 if amount_received else 0.0
+    amount_total = session_dict.get("amount_total", 0)
+    amount_in_units = amount_total / 100.0 if amount_total else 0.0
 
-    # Prevent duplicate fulfillment using stripe_payment_id
+    # Prevent duplicate fulfillment using stripe_payment_id as session_id
     existing_sub = (
         db.query(Video_Call_Subscription)
-        .filter(Video_Call_Subscription.stripe_payment_id == intent_id)
+        .filter(Video_Call_Subscription.stripe_payment_id == session_id)
         .first()
     )
 
@@ -140,7 +139,7 @@ def fulfill_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
 
     new_subscription = Video_Call_Subscription(
         user_id=user.id,
-        stripe_payment_id=intent_id,
+        stripe_payment_id=session_id,
         token_amount=tokens_to_add,
         status=PlanStatus.ACTIVE
     )
@@ -157,10 +156,10 @@ def fulfill_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
     db.commit()
 
 
-def handle_failed_payment_intent(payment_intent: stripe.PaymentIntent, db: Session):
-    intent_dict = payment_intent.to_dict() if hasattr(payment_intent, "to_dict") else dict(payment_intent)
-    intent_id = intent_dict.get("id")
-    metadata = intent_dict.get("metadata", {})
+def handle_expired_checkout_session(session: stripe.checkout.Session, db: Session):
+    session_dict = session.to_dict() if hasattr(session, "to_dict") else dict(session)
+    session_id = session_dict.get("id")
+    metadata = session_dict.get("metadata", {})
     user_id_str = metadata.get("user_id")
 
     if not user_id_str:
@@ -169,13 +168,13 @@ def handle_failed_payment_intent(payment_intent: stripe.PaymentIntent, db: Sessi
     user_id = int(user_id_str)
 
     if db.query(Video_Call_Subscription).filter(
-        Video_Call_Subscription.stripe_payment_id == intent_id
+        Video_Call_Subscription.stripe_payment_id == session_id
     ).first():
         return
 
     failed_sub = Video_Call_Subscription(
         user_id=user_id,
-        stripe_payment_id=intent_id,
+        stripe_payment_id=session_id,
         token_amount=0,
         status=PlanStatus.EXPIRED
     )
@@ -184,15 +183,11 @@ def handle_failed_payment_intent(payment_intent: stripe.PaymentIntent, db: Sessi
         db=db,
         user_id=user_id,
         sender_id=user_id,
-        message="Payment failed.",
+        message="Payment session expired.",
         notification_type="FAILED PAYMENT",
     )
     db.add(failed_sub)
     db.commit()
-
-
-
-
 # ===================================================================
 
 # AUTH ROUTES
@@ -382,10 +377,23 @@ async def pay(
         raise HTTPException(status_code=400, detail="Invalid plan amount")
 
     try:
-        # Create a Stripe PaymentIntent for inline modal element
-        intent = stripe.PaymentIntent.create(
-            amount=int(plan.amount_to_pay * 100),  # Convert currency to smallest unit (cents/paise)
-            currency=plan.currency.lower() if plan.currency else "inr",
+        # Create a Stripe Checkout Session
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": plan.currency.lower() if plan.currency else "inr",
+                    "product_data": {
+                        "name": plan.name,
+                        "description": plan.description or "AI Token Compute Tier",
+                    },
+                    "unit_amount": int(plan.amount_to_pay * 100),
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{BASE_URL}/api/v1/user/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{BASE_URL}/dashboard?payment=cancelled",
             metadata={
                 "user_id": str(current_user.id),
                 "plan_id": str(plan.id),
@@ -396,7 +404,7 @@ async def pay(
         raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
 
     return {
-        "client_secret": intent.client_secret,
+        "checkout_url": checkout_session.url,
         "plan": {
             "id": plan.id,
             "name": plan.name,
@@ -404,6 +412,7 @@ async def pay(
             "amount_to_pay": plan.amount_to_pay,
         }
     }
+
 
 
 
@@ -430,7 +439,6 @@ async def payment_success(
     raise HTTPException(status_code=400, detail="Payment not successful yet.")
 
 
-
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
@@ -447,19 +455,17 @@ async def stripe_webhook(request: Request):
     except stripe.error.SignatureVerificationError as e:
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    # Create a fresh DB session for the webhook thread
     db = SessionLocal()
     try:
-        if event["type"] == "payment_intent.succeeded":
-            payment_intent = event["data"]["object"]
-            # Call your fulfillment function here!
-            fulfill_payment_intent(payment_intent, db)
-            print(f"Successfully processed webhook for PaymentIntent: {payment_intent.get('id')}")
+        if event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            fulfill_checkout_session(session, db)
+            print(f"Successfully processed webhook for Checkout Session: {session.get('id')}")
 
-        elif event["type"] == "payment_intent.payment_failed":
-            payment_intent = event["data"]["object"]
-            handle_failed_payment_intent(payment_intent, db)
-            print(f"Handled failed payment for PaymentIntent: {payment_intent.get('id')}")
+        elif event["type"] == "checkout.session.expired":
+            session = event["data"]["object"]
+            handle_expired_checkout_session(session, db)
+            print(f"Handled expired session: {session.get('id')}")
 
     except Exception as e:
         db.rollback()
@@ -469,6 +475,9 @@ async def stripe_webhook(request: Request):
         db.close()
 
     return {"status": "success"}
+
+
+
 
 @router.post("/send_friend_request")
 async def send_friend_request(
