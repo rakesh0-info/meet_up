@@ -104,56 +104,115 @@ router = APIRouter(prefix="/api/v1/user")
 
 # ===================================================================
 # PAYMENT HELPER FUNCTIONS
-def fulfill_checkout_session(session: stripe.checkout.Session, db: Session):
-    session_dict = session.to_dict() if hasattr(session, "to_dict") else dict(session)
-    session_id = session_dict.get("id")
-    metadata = session_dict.get("metadata", {})
+def fulfill_payment_intent(
+    payment_intent,
+    db: Session
+):
+    intent_dict = (
+        payment_intent.to_dict()
+        if hasattr(payment_intent, "to_dict")
+        else dict(payment_intent)
+    )
+
+    payment_intent_id = intent_dict.get("id")
+
+    if not payment_intent_id:
+        raise ValueError("Missing PaymentIntent ID")
+
+    metadata = intent_dict.get("metadata", {})
 
     user_id_str = metadata.get("user_id")
-    tokens_to_add_str = metadata.get("tokens_to_add", "0")
-    
-    if not user_id_str:
-        return
+    tokens_to_add_str = metadata.get("tokens_to_add")
+
+    if not user_id_str or not tokens_to_add_str:
+        raise ValueError(
+            "PaymentIntent metadata is missing user_id or tokens_to_add"
+        )
 
     user_id = int(user_id_str)
     tokens_to_add = int(tokens_to_add_str)
-    
-    amount_total = session_dict.get("amount_total", 0)
-    amount_in_units = amount_total / 100.0 if amount_total else 0.0
 
-    # Prevent duplicate fulfillment using stripe_payment_id as session_id
-    existing_sub = (
+    # -----------------------------------------
+    # Prevent duplicate token credit
+    # -----------------------------------------
+
+    existing_payment = (
         db.query(Video_Call_Subscription)
-        .filter(Video_Call_Subscription.stripe_payment_id == session_id)
+        .filter(
+            Video_Call_Subscription.stripe_payment_id
+            == payment_intent_id
+        )
         .first()
     )
 
-    if existing_sub:
-        return  
+    if existing_payment:
+        print(
+            f"Payment already processed: {payment_intent_id}"
+        )
+        return
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # -----------------------------------------
+    # Find user
+    # -----------------------------------------
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise ValueError(
+            f"User not found: {user_id}"
+        )
+
+    # -----------------------------------------
+    # Credit tokens
+    # -----------------------------------------
 
     user.token_balance += tokens_to_add
 
+    # -----------------------------------------
+    # Save payment record
+    # -----------------------------------------
+
     new_subscription = Video_Call_Subscription(
         user_id=user.id,
-        stripe_payment_id=session_id,
+        stripe_payment_id=payment_intent_id,
         token_amount=tokens_to_add,
-        status=PlanStatus.ACTIVE
-    )
-
-    create_notification(
-        db=db,
-        user_id=user_id,
-        sender_id=user_id,
-        message=f"Payment completed! Total paid: {amount_in_units}, Total tokens added: {tokens_to_add}",
-        notification_type="SUCCESS PAYMENT",
+        status=PlanStatus.ACTIVE,
     )
 
     db.add(new_subscription)
+
+    # -----------------------------------------
+    # Notification
+    # -----------------------------------------
+
+    amount = intent_dict.get("amount", 0)
+
+    amount_in_units = amount / 100
+
+    create_notification(
+        db=db,
+        user_id=user.id,
+        sender_id=user.id,
+        message=(
+            f"Payment completed! "
+            f"Total paid: {amount_in_units} "
+            f"{intent_dict.get('currency', 'inr').upper()}, "
+            f"Total tokens added: {tokens_to_add}"
+        ),
+        notification_type="SUCCESS PAYMENT",
+    )
+
     db.commit()
+
+    print(
+        f"Payment successful: {payment_intent_id} "
+        f"| User: {user.id} "
+        f"| Tokens added: {tokens_to_add}"
+    )
 
 
 def handle_expired_checkout_session(session: stripe.checkout.Session, db: Session):
@@ -369,49 +428,60 @@ async def pay(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.USER)),
 ):
-    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
+    plan = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.id == plan_id)
+        .first()
+    )
+
     if not plan:
-        raise HTTPException(status_code=404, detail="Subscription plan not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Subscription plan not found"
+        )
 
     if not plan.amount_to_pay:
-        raise HTTPException(status_code=400, detail="Invalid plan amount")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid plan amount"
+        )
 
     try:
-        # Create a Stripe Checkout Session
-        checkout_session = stripe.checkout.Session.create(
+        amount = int(plan.amount_to_pay * 100)
+
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency=(plan.currency or "inr").lower(),
+
             payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": plan.currency.lower() if plan.currency else "inr",
-                    "product_data": {
-                        "name": plan.name,
-                        # "description": plan.description or "AI Token Compute Tier",
-                    },
-                    "unit_amount": int(plan.amount_to_pay * 100),
-                },
-                "quantity": 1,
-            }],
-            mode="payment",
-            success_url=f"{BASE_URL}/api/v1/user/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{BASE_URL}/dashboard?payment=cancelled",
+
             metadata={
                 "user_id": str(current_user.id),
                 "plan_id": str(plan.id),
                 "tokens_to_add": str(plan.token_amount),
             },
-        )
-    except stripe.StripeError as e:
-        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
 
-    return {
-        "checkout_url": checkout_session.url,
-        "plan": {
-            "id": plan.id,
-            "name": plan.name,
-            "tokens_to_receive": plan.token_amount,
-            "amount_to_pay": plan.amount_to_pay,
+            description=f"{plan.name} - {plan.token_amount} tokens",
+        )
+
+        return {
+            "client_secret": payment_intent.client_secret,
+            "payment_intent_id": payment_intent.id,
+
+            "plan": {
+                "id": plan.id,
+                "name": plan.name,
+                "tokens_to_receive": plan.token_amount,
+                "amount_to_pay": float(plan.amount_to_pay),
+                "currency": plan.currency or "inr",
+            }
         }
-    }
+
+    except stripe.StripeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe error: {str(e)}"
+        )
 
 
 
@@ -441,41 +511,117 @@ async def payment_success(
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
-    payload = await request.body()
-    sig_header = request.headers.get("Stripe-Signature")
-    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    event = None
+    payload = await request.body()
+
+    sig_header = request.headers.get(
+        "Stripe-Signature"
+    )
+
+    endpoint_secret = os.getenv(
+        "STRIPE_WEBHOOK_SECRET"
+    )
+
     try:
+
         event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
+            payload,
+            sig_header,
+            endpoint_secret
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError as e:
-        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid payload"
+        )
+
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid signature"
+        )
 
     db = SessionLocal()
-    try:
-        if event["type"] == "checkout.session.completed":
-            session = event["data"]["object"]
-            fulfill_checkout_session(session, db)
-            print(f"Successfully processed webhook for Checkout Session: {session.get('id')}")
 
-        elif event["type"] == "checkout.session.expired":
-            session = event["data"]["object"]
-            handle_expired_checkout_session(session, db)
-            print(f"Handled expired session: {session.get('id')}")
+    try:
+
+        event_type = event["type"]
+
+        print(
+            f"Stripe webhook received: {event_type}"
+        )
+
+        # ---------------------------------------
+        # PAYMENT SUCCESS
+        # ---------------------------------------
+
+        if event_type == "payment_intent.succeeded":
+
+            payment_intent = event[
+                "data"
+            ]["object"]
+
+            fulfill_payment_intent(
+                payment_intent,
+                db
+            )
+
+            print(
+                "PaymentIntent successfully fulfilled:",
+                payment_intent["id"]
+            )
+
+        # ---------------------------------------
+        # PAYMENT FAILED
+        # ---------------------------------------
+
+        elif event_type == "payment_intent.payment_failed":
+
+            payment_intent = event[
+                "data"
+            ]["object"]
+
+            print(
+                "Payment failed:",
+                payment_intent["id"]
+            )
+
+        # ---------------------------------------
+        # PAYMENT PROCESSING
+        # ---------------------------------------
+
+        elif event_type == "payment_intent.processing":
+
+            payment_intent = event[
+                "data"
+            ]["object"]
+
+            print(
+                "Payment processing:",
+                payment_intent["id"]
+            )
 
     except Exception as e:
+
         db.rollback()
-        print(f"Webhook processing error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+
+        print(
+            f"Webhook processing error: {str(e)}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook processing failed"
+        )
+
     finally:
+
         db.close()
 
-    return {"status": "success"}
-
+    return {
+        "status": "success"
+    }
 
 
 

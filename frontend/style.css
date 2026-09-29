@@ -798,3 +798,77 @@ button:active {
         grid-template-columns: 1fr;
     }
 }
+.payment-modal {
+    position: fixed;
+    inset: 0;
+
+    display: none;
+
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(0, 0, 0, 0.75);
+
+    z-index: 9999;
+}
+
+.payment-modal.show {
+    display: flex;
+}
+
+.payment-box {
+    width: 500px;
+    max-width: 90%;
+
+    background: #101522;
+
+    border-radius: 20px;
+
+    padding: 30px;
+
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+
+    color: white;
+}
+
+#payment-element {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+#pay-button {
+    width: 100%;
+
+    padding: 14px;
+
+    border: none;
+    border-radius: 10px;
+
+    background: #6c4cff;
+
+    color: white;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+#close-payment {
+    float: right;
+
+    background: transparent;
+
+    border: none;
+
+    color: white;
+
+    font-size: 25px;
+
+    cursor: pointer;
+}
+
+#payment-error {
+    color: #ff6b6b;
+    margin-bottom: 10px;
+}

@@ -2405,66 +2405,869 @@ let elements;
 
 
 // Triggered when user clicks a plan button
+// async function subscribePlan(planId) {
+//     if (!accessToken) {
+//         showToast('Please log in before activating a token plan.', 'info');
+//         return;
+//     }
+
+//     // Open the payment popup and fetch the client_secret from FastAPI
+//     await openPaymentPopup(planId);
+// }
+
+// async function openPaymentPopup(planId) {
+//     try {
+//         // Calls FastAPI /activate_plan endpoint which creates a PaymentIntent
+//         const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
+//         const clientSecret = response.client_secret;
+
+//         if (!clientSecret) {
+//             showToast("Failed to retrieve payment session.", "error");
+//             return;
+//         }
+
+//         // Show the modal container
+//         document.getElementById('payment-modal').classList.remove('hidden');
+
+//         // Initialize and mount Stripe Payment Element
+//         elements = stripeInstance.elements({ clientSecret });
+//         const paymentElement = elements.create('payment');
+//         paymentElement.mount('#payment-element');
+
+//     } catch (err) {
+//         console.error("Payment initialization error:", err);
+//         showToast("Failed to initialize payment modal.", "error");
+//     }
+// }
+
+// // Handle payment form submission inside the popup (Only ONE listener)
+// document.getElementById('payment-form').addEventListener('submit', async (e) => {
+//     e.preventDefault();
+    
+//     const submitButton = document.getElementById('submit-payment');
+//     submitButton.disabled = true;
+//     submitButton.textContent = "Processing...";
+
+//     const { error } = await stripeInstance.confirmPayment({
+//         elements,
+//         confirmParams: {
+//             return_url: window.location.origin + '/?payment=success', 
+//         },
+//     });
+
+//     if (error) {
+//         showToast(error.message, "error");
+//         submitButton.disabled = false;
+//         submitButton.textContent = "Pay Now";
+//     }
+// });
+
+// function closePaymentModal() {
+//     document.getElementById('payment-modal').classList.add('hidden');
+//     const submitButton = document.getElementById('submit-payment');
+//     submitButton.disabled = false;
+//     submitButton.textContent = "Pay Now";
+// }
+
+const stripe = Stripe(
+    'YOUR_STRIPE_PUBLISHABLE_KEY'
+);
+
+let stripeElements = null;
+
+let stripePaymentElement = null;
+
+let currentPaymentIntentId = null;
+
+let currentPlanId = null;
+
+
+/* =====================================================
+   SELECT PLAN
+===================================================== */
+
 async function subscribePlan(planId) {
+
     if (!accessToken) {
-        showToast('Please log in before activating a token plan.', 'info');
+
+        showToast(
+            'Please log in before purchasing tokens.',
+            'info'
+        );
+
         return;
     }
 
-    // Open the payment popup and fetch the client_secret from FastAPI
     await openPaymentPopup(planId);
 }
 
+
+/* =====================================================
+   OPEN PAYMENT POPUP
+===================================================== */
+
 async function openPaymentPopup(planId) {
+
     try {
-        // Calls FastAPI /activate_plan endpoint which creates a PaymentIntent
-        const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
-        const clientSecret = response.client_secret;
+
+        currentPlanId = planId;
+
+        /*
+         * Ask backend to create PaymentIntent
+         */
+
+        const response = await request(
+            `/api/v1/user/activate_plan?plan_id=${planId}`,
+            'POST'
+        );
+
+        console.log(
+            'PaymentIntent response:',
+            response
+        );
+
+        const clientSecret =
+            response.client_secret;
 
         if (!clientSecret) {
-            showToast("Failed to retrieve payment session.", "error");
+
+            showToast(
+                'Unable to initialize payment.',
+                'error'
+            );
+
             return;
         }
 
-        // Show the modal container
-        document.getElementById('payment-modal').classList.remove('hidden');
 
-        // Initialize and mount Stripe Payment Element
-        elements = stripeInstance.elements({ clientSecret });
-        const paymentElement = elements.create('payment');
-        paymentElement.mount('#payment-element');
+        currentPaymentIntentId =
+            response.payment_intent_id;
 
-    } catch (err) {
-        console.error("Payment initialization error:", err);
-        showToast("Failed to initialize payment modal.", "error");
+
+        /*
+         * Update plan information
+         */
+
+        const plan =
+            response.plan || {};
+
+        const planName =
+            document.getElementById(
+                'payment-plan-name'
+            );
+
+        const tokenCount =
+            document.getElementById(
+                'payment-token-count'
+            );
+
+        const planPrice =
+            document.getElementById(
+                'payment-plan-price'
+            );
+
+        const emailInput =
+            document.getElementById(
+                'payment-email'
+            );
+
+
+        if (planName) {
+
+            planName.textContent =
+                plan.name || 'Token Plan';
+
+        }
+
+
+        if (tokenCount) {
+
+            tokenCount.textContent =
+                `${plan.tokens_to_receive || 0} Tokens`;
+
+        }
+
+
+        if (planPrice) {
+
+            const currency =
+                String(
+                    plan.currency || 'INR'
+                ).toUpperCase();
+
+            planPrice.textContent =
+                `${currency} ${plan.amount_to_pay || 0}`;
+
+        }
+
+
+        if (emailInput) {
+
+            emailInput.value =
+                currentEmail || '';
+
+        }
+
+
+        /*
+         * Reset old Stripe Element
+         */
+
+        if (stripePaymentElement) {
+
+            try {
+
+                stripePaymentElement.unmount();
+
+            } catch (e) {
+
+                console.warn(
+                    'Stripe unmount warning:',
+                    e
+                );
+
+            }
+
+            stripePaymentElement = null;
+        }
+
+
+        /*
+         * Create Stripe Elements
+         */
+
+        stripeElements =
+            stripe.elements({
+
+                clientSecret:
+
+                    clientSecret,
+
+                appearance: {
+
+                    theme: 'night',
+
+                    variables: {
+
+                        colorPrimary:
+                            '#6366f1',
+
+                        colorBackground:
+                            '#111827',
+
+                        colorText:
+                            '#ffffff',
+
+                        colorDanger:
+                            '#ef4444',
+
+                        borderRadius:
+                            '10px'
+
+                    }
+
+                }
+
+            });
+
+
+        /*
+         * Create Payment Element
+         */
+
+        stripePaymentElement =
+            stripeElements.create(
+                'payment'
+            );
+
+
+        stripePaymentElement.mount(
+            '#payment-element'
+        );
+
+
+        /*
+         * Open YOUR popup
+         */
+
+        const modal =
+            document.getElementById(
+                'payment-modal'
+            );
+
+        if (modal) {
+
+            modal.classList.remove(
+                'hidden'
+            );
+
+        }
+
+
+        /*
+         * Reset messages
+         */
+
+        const errorBox =
+            document.getElementById(
+                'payment-error'
+            );
+
+        const successBox =
+            document.getElementById(
+                'payment-success'
+            );
+
+        const payButton =
+            document.getElementById(
+                'pay-button'
+            );
+
+
+        if (errorBox) {
+
+            errorBox.textContent = '';
+
+        }
+
+
+        if (successBox) {
+
+            successBox.classList.add(
+                'hidden'
+            );
+
+        }
+
+
+        if (payButton) {
+
+            payButton.disabled = false;
+
+            payButton.textContent =
+                'Pay Now';
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            'Payment initialization failed:',
+            error
+        );
+
+        showToast(
+            error.message ||
+            'Unable to initialize payment.',
+            'error'
+        );
     }
 }
 
-// Handle payment form submission inside the popup (Only ONE listener)
-document.getElementById('payment-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const submitButton = document.getElementById('submit-payment');
-    submitButton.disabled = true;
-    submitButton.textContent = "Processing...";
 
-    const { error } = await stripeInstance.confirmPayment({
-        elements,
-        confirmParams: {
-            return_url: window.location.origin + '/?payment=success', 
-        },
-    });
+/* =====================================================
+   PAYMENT FORM
+===================================================== */
 
-    if (error) {
-        showToast(error.message, "error");
-        submitButton.disabled = false;
-        submitButton.textContent = "Pay Now";
+document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+
+        const paymentForm =
+            document.getElementById(
+                'payment-form'
+            );
+
+        if (!paymentForm) {
+
+            console.warn(
+                'Payment form not found.'
+            );
+
+            return;
+        }
+
+
+        paymentForm.addEventListener(
+            'submit',
+            handlePaymentSubmit
+        );
+
     }
-});
+);
+
+
+/* =====================================================
+   PROCESS PAYMENT
+===================================================== */
+
+async function handlePaymentSubmit(event) {
+
+    event.preventDefault();
+
+
+    if (!stripeElements) {
+
+        showToast(
+            'Payment is not initialized.',
+            'error'
+        );
+
+        return;
+    }
+
+
+    const button =
+        document.getElementById(
+            'pay-button'
+        );
+
+    const errorBox =
+        document.getElementById(
+            'payment-error'
+        );
+
+
+    if (errorBox) {
+
+        errorBox.textContent = '';
+
+    }
+
+
+    if (button) {
+
+        button.disabled = true;
+
+        button.textContent =
+            'Processing...';
+
+    }
+
+
+    try {
+
+        /*
+         * Validate Payment Element
+         */
+
+        const submitResult =
+            await stripeElements.submit();
+
+
+        if (submitResult.error) {
+
+            throw submitResult.error;
+
+        }
+
+
+        /*
+         * Confirm Payment
+         *
+         * redirect: if_required means
+         * normal card payments remain
+         * inside your application.
+         */
+
+        const result =
+            await stripe.confirmPayment({
+
+                elements:
+                    stripeElements,
+
+                confirmParams: {
+
+                    payment_method_data: {
+
+                        billing_details: {
+
+                            email:
+                                currentEmail || ''
+
+                        }
+
+                    }
+
+                },
+
+                redirect:
+                    'if_required'
+
+            });
+
+
+        if (result.error) {
+
+            throw result.error;
+
+        }
+
+
+        /*
+         * Payment has been confirmed.
+         *
+         * DO NOT add tokens here.
+         *
+         * Webhook adds tokens.
+         */
+
+        if (button) {
+
+            button.textContent =
+                'Payment Processing...';
+
+        }
+
+
+        /*
+         * Wait until webhook has
+         * credited the wallet.
+         */
+
+        await waitForWalletUpdate();
+
+
+    } catch (error) {
+
+        console.error(
+            'Stripe payment error:',
+            error
+        );
+
+
+        if (errorBox) {
+
+            errorBox.textContent =
+                error.message ||
+                'Payment failed.';
+
+        }
+
+
+        if (button) {
+
+            button.disabled = false;
+
+            button.textContent =
+                'Pay Now';
+
+        }
+
+    }
+}
+
+
+/* =====================================================
+   WAIT FOR WEBHOOK / WALLET UPDATE
+===================================================== */
+
+async function waitForWalletUpdate() {
+
+    const maxAttempts = 15;
+
+    let previousBalance = null;
+
+
+    try {
+
+        const initialUser =
+            await request(
+                '/api/v1/user/me',
+                'GET'
+            );
+
+        previousBalance =
+            Number(
+                initialUser.token_balance || 0
+            );
+
+    } catch (error) {
+
+        console.warn(
+            'Could not get initial balance:',
+            error
+        );
+
+    }
+
+
+    for (
+        let attempt = 0;
+        attempt < maxAttempts;
+        attempt++
+    ) {
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    1000
+                )
+        );
+
+
+        try {
+
+            const user =
+                await request(
+                    '/api/v1/user/me',
+                    'GET'
+                );
+
+
+            const newBalance =
+                Number(
+                    user.token_balance || 0
+                );
+
+
+            /*
+             * Webhook credited tokens
+             */
+
+            if (
+                previousBalance !== null &&
+                newBalance >
+                    previousBalance
+            ) {
+
+                updateWalletDisplay(
+                    newBalance
+                );
+
+                showPaymentSuccess(
+                    newBalance
+                );
+
+                return true;
+            }
+
+
+            /*
+             * Also update UI
+             */
+
+            updateWalletDisplay(
+                newBalance
+            );
+
+        } catch (error) {
+
+            console.warn(
+                'Wallet refresh attempt failed:',
+                error
+            );
+
+        }
+
+    }
+
+
+    /*
+     * Payment succeeded but webhook
+     * has not appeared yet.
+     */
+
+    showToast(
+        'Payment received. Your wallet will update shortly.',
+        'info'
+    );
+
+
+    if (button) {
+
+        button.disabled = false;
+
+        button.textContent =
+            'Pay Now';
+
+    }
+
+
+    return false;
+}
+
+
+/* =====================================================
+   SHOW SUCCESS
+===================================================== */
+
+function showPaymentSuccess(
+    balance
+) {
+
+    const paymentForm =
+        document.getElementById(
+            'payment-form'
+        );
+
+    const successBox =
+        document.getElementById(
+            'payment-success'
+        );
+
+    const button =
+        document.getElementById(
+            'pay-button'
+        );
+
+
+    if (paymentForm) {
+
+        paymentForm.classList.add(
+            'hidden'
+        );
+
+    }
+
+
+    if (successBox) {
+
+        successBox.classList.remove(
+            'hidden'
+        );
+
+    }
+
+
+    if (button) {
+
+        button.disabled = true;
+
+        button.textContent =
+            'Payment Successful ✓';
+
+    }
+
+
+    /*
+     * Wallet is already updated
+     */
+
+    updateWalletDisplay(
+        balance
+    );
+
+
+    /*
+     * Refresh dashboard data
+     */
+
+    if (
+        typeof loadUserDashboard ===
+        'function'
+    ) {
+
+        loadUserDashboard()
+            .catch(() => {});
+
+    }
+
+
+    /*
+     * Close after 2.5 seconds
+     */
+
+    setTimeout(
+        () => {
+
+            closePaymentModal();
+
+        },
+        2500
+    );
+}
+
+
+/* =====================================================
+   CLOSE PAYMENT POPUP
+===================================================== */
 
 function closePaymentModal() {
-    document.getElementById('payment-modal').classList.add('hidden');
-    const submitButton = document.getElementById('submit-payment');
-    submitButton.disabled = false;
-    submitButton.textContent = "Pay Now";
+
+    const modal =
+        document.getElementById(
+            'payment-modal'
+        );
+
+    if (modal) {
+
+        modal.classList.add(
+            'hidden'
+        );
+
+    }
+
+
+    if (stripePaymentElement) {
+
+        try {
+
+            stripePaymentElement.unmount();
+
+        } catch (e) {}
+
+        stripePaymentElement = null;
+
+    }
+
+
+    stripeElements = null;
+
+
+    const paymentForm =
+        document.getElementById(
+            'payment-form'
+        );
+
+    const successBox =
+        document.getElementById(
+            'payment-success'
+        );
+
+    const errorBox =
+        document.getElementById(
+            'payment-error'
+        );
+
+    const button =
+        document.getElementById(
+            'pay-button'
+        );
+
+
+    if (paymentForm) {
+
+        paymentForm.classList.remove(
+            'hidden'
+        );
+
+    }
+
+
+    if (successBox) {
+
+        successBox.classList.add(
+            'hidden'
+        );
+
+    }
+
+
+    if (errorBox) {
+
+        errorBox.textContent = '';
+
+    }
+
+
+    if (button) {
+
+        button.disabled = false;
+
+        button.textContent =
+            'Pay Now';
+
+    }
 }

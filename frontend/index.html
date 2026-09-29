@@ -634,19 +634,32 @@
     </div>
 
     <!-- STRIPE IN-APP PAYMENT MODAL POPUP -->
-    <div id="payment-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full relative shadow-2xl">
-        <h3 class="font-bold text-lg text-white mb-4">Complete Payment</h3>
-        <form id="payment-form" class="space-y-4">
-            <!-- Stripe Elements mounts the payment inputs here -->
-            <div id="payment-element" class="p-3 bg-slate-950 rounded-xl border border-slate-800"></div>
-            
-            <button id="submit-payment" type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-600/30">
+      <div id="payment-modal" class="payment-modal">
+
+    <div class="payment-box">
+
+        <button id="close-payment">×</button>
+
+        <h2>Complete Payment</h2>
+
+        <p id="payment-plan"></p>
+        <h3 id="payment-price"></h3>
+
+        <form id="payment-form">
+
+            <div id="payment-element"></div>
+
+            <div id="payment-error"></div>
+
+            <button type="submit" id="pay-button">
                 Pay Now
             </button>
+
         </form>
-        <button onclick="closePaymentModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold">✕</button>
+
     </div>
+
+</div>
 </div>
 
     <!-- Script integration matching app.js -->
