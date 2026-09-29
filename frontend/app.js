@@ -351,7 +351,7 @@ async function handleRegister(event) {
         // If it throws an error (e.g., if FastAPI raises an HTTPException with status code >= 400)
         const errorMsg = e.detail || e.message || "Registration submitted. Verify OTP sent to " + currentEmail;
         showToast(errorMsg, 'info');
-        showOTPScreen();
+        // showOTPScreen();
     }
 }
 async function handleLogin(event) {
