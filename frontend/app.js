@@ -516,7 +516,7 @@ async function handleVerifyOTP(event) {
         alert('invalid otp! Please send te otp again.');
         document.getElementById('otp-screen').classList.add('hidden');
         document.getElementById('auth-screen').classList.remove('hidden');
-        switchAuthTab('login');
+        switchAuthTab('regForm');
     }
 }
 

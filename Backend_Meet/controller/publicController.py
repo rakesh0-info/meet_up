@@ -647,18 +647,37 @@ async def send_friend_request(
         )
 
    
-    existing_request = db.query(FriendRequest).filter( 
-    or_( 
-        and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id,FriendRequest.request_status==re_status.SENT), 
-        and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id,FriendRequest.request_status==re_status.SENT) 
-    ) 
-).first() 
+    existing_request = db.query(FriendRequest).filter(
+        or_(
+            and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id),
+            and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id)
+        )
+    ).first()
 
     if existing_request:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="Friend request already sent or exists"
-        )
+            if existing_request.request_status == re_status.SENT:
+                raise HTTPException(status_code=400, detail="Friend request already sent.")
+            
+            elif existing_request.request_status == re_status.REJECTED:
+                # Allow re-sending by updating the old request back to SENT
+                # Make sure current_user is the sender this time around
+                existing_request.sender_id = current_user.id
+                existing_request.receiver_id = receiver_id
+                existing_request.request_status = re_status.SENT
+                db.commit()
+                db.refresh(existing_request)
+                create_notification(
+                        db=db,
+                        user_id=receiver_id,
+                        sender_id=current_user.id,
+                        message=f"{current_user.name} again send you  a friend request [sender_id:{current_user.id}]",
+                        notification_type="FRIEND_REQUEST",
+                        
+                )
+                return {"message": "Friend request sent again successfully"}
+            
+            elif existing_request.request_status == re_status.ACCEPTED:
+                raise HTTPException(status_code=400, detail="You are already connected.")
 
     new_request = FriendRequest(
         sender_id=current_user.id,
