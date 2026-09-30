@@ -649,8 +649,8 @@ async def send_friend_request(
    
     existing_request = db.query(FriendRequest).filter( 
     or_( 
-        and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id), 
-        and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id) 
+        and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id,FriendRequest.request_status==re_status.SENT), 
+        and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id,FriendRequest.request_status==re_status.SENT) 
     ) 
 ).first() 
 

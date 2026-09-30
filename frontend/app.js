@@ -513,7 +513,7 @@ async function handleVerifyOTP(event) {
         switchAuthTab('login');
     } catch (e) {
         console.error(e);
-        alert('Account verified successfully! Please log in.');
+        alert('invalid otp! Please send te otp again.');
         document.getElementById('otp-screen').classList.add('hidden');
         document.getElementById('auth-screen').classList.remove('hidden');
         switchAuthTab('login');
