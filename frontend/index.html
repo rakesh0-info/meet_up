@@ -269,14 +269,49 @@
 
             <!-- ADMIN VIEW: System & User Usage Analytics -->
             <section id="admin-summary-section" class="section hidden space-y-5">
-                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h2
-                        class="font-bold text-xl text-slate-100">
-                        System Analytics & Token Usage</h2>
-                    <span
-                        class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">Admin
-                        Portal</span>
+
+
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div>
+                        <h2 class="font-bold text-xl text-slate-100">System Analytics & Token Usage</h2>
+                        <p class="text-xs text-slate-400 mt-1">Manage reports and user account status.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="toggleAdminReports()" class="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 text-xs font-bold">
+                            ⚠️ Reports
+                        </button>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            Admin Portal
+                        </span>
+                    </div>
                 </div>
+
+                <div id="adminReportsSection" class="hidden mt-4 p-4 bg-slate-950/40 border border-slate-800 rounded-2xl">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-100">User Reports</h2>
+                            <p class="text-xs text-slate-400 mt-1">Review submitted reports and proof before deactivating an account.</p>
+                        </div>
+                        <button type="button" onclick="toggleAdminReports()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
+                            Close
+                        </button>
+                    </div>
+                    <div id="adminReportsContainer"></div>
+                    <h2 class="text-lg font-bold text-slate-100 mt-6 mb-3">Manage Users Status</h2>
+                    <div id="adminUsersContainer"></div>
+                </div>
+
+                <div id="proofModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+                    <div class="bg-slate-900 border border-slate-700 p-5 rounded-2xl max-w-2xl w-full shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-bold text-slate-100">Report Proof</h3>
+                            <button type="button" onclick="document.getElementById('proofModal').classList.add('hidden')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
+                        </div>
+                        <img id="proofImage" src="" alt="Report proof screenshot" class="w-full max-h-[70vh] object-contain rounded-xl border border-slate-800 bg-slate-950">
+                        <p id="proofEmptyMessage" class="hidden text-center text-sm text-slate-400 py-12">No screenshot was attached to this report.</p>
+                    </div>
+                </div>
+
                 <div id="admin-usage-card"
                     class="summary-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md">
                     <p class="text-slate-400 text-xs animate-pulse">Loading stats...</p>
@@ -616,6 +651,13 @@
                         <span id="chat-header-status" class="text-[11px] text-emerald-400">Available</span>
                     </div>
                 </div>
+                <div class="relative">
+                    <button type="button" onclick="document.getElementById('chatMenuDropdown').classList.toggle('hidden')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-lg leading-none">⋮</button>
+                    <div id="chatMenuDropdown" class="hidden absolute right-0 mt-2 bg-slate-900 border border-slate-700 shadow-2xl rounded-xl py-1 w-32 z-20 overflow-hidden">
+                        <button type="button" onclick="blockUser(activeChatPartnerId)" class="w-full text-left px-4 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/10">🚫 Block</button>
+                        <button type="button" onclick="unblockUser(activeChatPartnerId)" class="w-full text-left px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10">✓ Unblock</button>
+                    </div>
+                </div>
                 <button onclick="closeChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
             </div>
 
@@ -632,6 +674,34 @@
             </form>
         </div>
     </div>
+
+
+    <!-- Admin Reports Modal Popup -->
+<div id="admin-reports-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+            <div>
+                <h3 class="font-bold text-slate-100 text-base">📊 System Admin Reports</h3>
+                <p class="text-xs text-slate-400">Review analytics, usage telemetry, and activity logs</p>
+            </div>
+            <button onclick="closeAdminReportsModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1">&times;</button>
+        </div>
+
+        <!-- Modal Body / Reports List -->
+        <div id="admin-reports-list" class="p-6 overflow-y-auto space-y-3 flex-1">
+            <!-- Dynamically populated reports will appear here -->
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-slate-800 bg-slate-950/50 flex justify-end">
+            <button onclick="closeAdminReportsModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-all">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
 
     <!-- STRIPE IN-APP PAYMENT MODAL POPUP -->
 
@@ -764,8 +834,41 @@
 
 </div>
 
-
+<div id="reportModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-100">Report User</h3>
+                <p class="text-xs text-slate-400 mt-1">Provide a description and screenshot proof.</p>
+            </div>
+            <button type="button" onclick="closeReportPopup()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
+        </div>
+        <form id="report-user-form" onsubmit="submitUserReport(event)" class="space-y-4">
+            <input type="hidden" id="reportedUserIdInput">
+            <div>
+                <label for="reportDescriptionInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Description <span class="text-rose-400">*</span></label>
+                <textarea id="reportDescriptionInput" placeholder="Explain what happened..." rows="5" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+            </div>
+            <div>
+                <label for="reportScreenshotInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Screenshot Proof <span class="text-rose-400">*</span></label>
+                <input
+    type="file"
+    id="reportScreenshotInput"
+    class="w-full mb-4 text-sm"
+    accept="image/*"
+    required>
+                <p class="text-[11px] text-slate-500 mt-1">Attach the screenshot showing the inappropriate or abusive message.</p>
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="closeReportPopup()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Send Report</button>
+            </div>
+        </form>
+    </div>
+    
 </div>
+</div>
+
 
     <!-- Script integration matching app.js -->
     <script src="/app.js"></script>

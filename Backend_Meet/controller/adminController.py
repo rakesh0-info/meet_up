@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, HTTPException, Depends, UploadFile, status,
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
+from service.notification_service import create_notification
 from requestmodel.subcription import SubscriptionPlanCreate
 
 from dotenv import load_dotenv
@@ -21,6 +22,7 @@ from dataBase_Model.video_call import VideoCall
 from enums.plan_status import status as PlanStatus
 
 from enums.call_status import CallStatus
+from dataBase_Model.reportModel import Reports
 
 
 
@@ -205,3 +207,106 @@ async def add_new_plan(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create plan: {str(e)}"
         )
+
+
+
+
+
+@router.get("/all_report")
+async def get_all_report(db: Session = Depends(get_db),
+    cur: User = Depends(require_roles(roleEnum.Role.ADMIN))):
+
+    res= db.query(Reports).all()
+
+    return res
+
+
+@router.get("/report/{id}")
+async def viewReport(
+    id: int,
+    db: Session = Depends(get_db),
+    cur: User = Depends(require_roles(roleEnum.Role.ADMIN))
+):
+    existing_report = db.query(Reports).filter(Reports.id == id).first()
+
+    if not existing_report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    return existing_report
+    
+
+@router.post("/take_action/{id}")
+async def takeAction(
+    id: int,  # MATCHED path parameter name
+    acticon: str,
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(roleEnum.Role.ADMIN)),
+):
+    # 'id' represents the user being reported (about_whom_id)
+    exist = db.query(User).filter(User.id == id).first()
+
+    if not exist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    report = db.query(Reports).filter(Reports.report_for == exist.id,exist.is_blockbyAdmin==False).first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report for this user not found")
+
+    action_clean = acticon.strip().lower()
+
+    if action_clean in ["yes", "accept"]:
+        exist.is_blockbyAdmin = True
+        db.commit()
+        db.refresh(exist)  
+        
+        # Fixed: Removed trailing comma, used exist.name, fixed variable name
+        notification_msg = f"Admin blocked {exist.name} successfully."
+        notification_type = "ADMIN_NOTIFICATION"
+        
+    elif action_clean in ["no", "reject"]:
+        # Fixed: Removed trailing comma, fixed variable spelling (otification_type -> notification_type)
+        notification_msg = "Sorry, this report has been reviewed and deemed inappropriate."
+        notification_type = "ADMIN_NOTIFICATION"
+        
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid status value. Use 'yes' or 'no'."
+        )
+
+    # Notify the user who submitted the report (report.report_by)
+    create_notification(
+        db=db,
+        user_id=report.report_by,  # Send to the reporter
+        sender_id=curr.id,         # Sent by current admin
+        message=notification_msg,
+        notification_type=notification_type
+    )
+
+    return {"status": "success", "message": "Action processed successfully"}
+
+
+@router.post("/unblock/{email}")
+async def unblock(
+    email: str,
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(roleEnum.Role.ADMIN))
+):
+    exist = db.query(User).filter(User.email == email, User.is_blockbyAdmin == True).first()
+
+    if not exist:
+        raise HTTPException(404, detail="Blocked user not found")
+
+    exist.is_blockbyAdmin = False
+    db.commit()
+    db.refresh(exist)
+
+    return {"message": "User unblocked successfully"}
+        
+
+
+        
+
+    
+    

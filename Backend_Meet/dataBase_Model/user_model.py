@@ -31,6 +31,8 @@ class User(Base):
     # is_forget_pass=Column(Boolean,default= False)
     secret_key=Column(String(200),nullable=True)
 
+    is_blockbyAdmin=Column(Boolean, nullable= True, default=False)
+
     # Relationships
     sent_messages = relationship("Chat_M", foreign_keys=[Chat_M.sender_id], back_populates="sender")
     received_messages = relationship("Chat_M", foreign_keys=[Chat_M.receiver_id], back_populates="receiver")

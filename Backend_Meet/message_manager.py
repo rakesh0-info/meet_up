@@ -100,19 +100,7 @@ class msg_connectionManager:
             )
 
         # Enforce Friendship Requirement
-        friendship = db.query(FriendRequest).filter(
-            or_(
-                and_(FriendRequest.sender_id == sender_id, FriendRequest.receiver_id == recipient_id),
-                and_(FriendRequest.sender_id == recipient_id, FriendRequest.receiver_id == sender_id)
-            ),
-            FriendRequest.request_status == re_status.ACCEPT 
-        ).first()
-
-        if not friendship:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You must be friends with this user to send messages."
-            )
+        
 
         is_online = recipient_id in self.active_connections
 

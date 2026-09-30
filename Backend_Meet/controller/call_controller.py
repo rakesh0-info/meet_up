@@ -6,12 +6,15 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status as http_status
 from fastapi.responses import PlainTextResponse
 from jose import jwt
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
+from dataBase_Model.friend_request import FriendRequest
 from database import get_db
 from dataBase_Model.video_call import VideoCall
 from dataBase_Model.user_model import User
+from enums.Request_Status import re_status
 from security.role_authenticated import get_websocket_user, require_roles
 from enums.roleEnum import Role
 from enums.call_status import CallStatus
@@ -123,11 +126,32 @@ async def send_call_request(
             detail="You can only call accepted friends."
         )
 
-    if current_user.token_balance <=10:
+    if current_user.token_balance <10:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="Insufficient token balance."
         )
+    
+    friendship = db.query(FriendRequest).filter(
+        or_(
+            and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == receiver_id),
+            and_(FriendRequest.sender_id == receiver_id, FriendRequest.receiver_id == current_user.id)
+        ),
+        FriendRequest.request_status == re_status.ACCEPT
+    ).first()
+
+    if not friendship:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="You can only call accepted friends."
+        )
+
+    # Check if either user has blocked the other
+    if friendship.is_blocked:
+        if friendship.who_block == current_user.id:
+            raise HTTPException(status_code=400, detail="You have blocked this user.")
+        else:
+            raise HTTPException(status_code=400, detail="You have been blocked by this user.")
 
     room_id = f"room_{uuid.uuid4().hex[:12]}"
 

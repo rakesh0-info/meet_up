@@ -10,7 +10,9 @@ from fastapi import (
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
+from dataBase_Model.friend_request import FriendRequest
 from dataBase_Model.user_model import User
+from enums.Request_Status import re_status
 from enums.roleEnum import Role
 from database import get_db
 from security.role_authenticated import get_websocket_user, require_roles
@@ -81,13 +83,39 @@ async def send_private(
     current_user: User = Depends(require_roles(Role.USER)),
 ):
     try:
-        await manager.send_private_message(
+       friendship = db.query(FriendRequest).filter(
+            or_(
+                and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == payload.receiver_id),
+                and_(FriendRequest.sender_id == payload.receiver_id, FriendRequest.receiver_id == current_user.id)
+            ),
+            FriendRequest.request_status == re_status.ACCEPT 
+        ).first()
+        
+       if not friendship:
+            raise HTTPException(
+                status_code=404,
+                detail="You must be friends with this user to send messages."
+            )
+        
+       
+       if friendship.is_blocked and friendship.who_block == current_user.id:
+            raise HTTPException(
+                status_code=400,
+                detail="You have blocked this user."
+            )
+       
+       if friendship.is_blocked and friendship.who_block == payload.recipient_id:
+            raise HTTPException(
+                status_code=400,
+                detail="You have been blocked by this user."
+            )
+       await manager.send_private_message(
             sender_id=current_user.id,
             recipient_id=payload.receiver_id,
             message=payload.message,
             db=db,
         )
-        return {"status": "success", "message": "Message sent successfully"}
+       return {"status": "success", "message": "Message sent successfully"}
     except HTTPException as e:
         raise e
     except Exception as e:

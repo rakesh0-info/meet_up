@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Enum, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, Column, Enum, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -13,6 +13,7 @@ class VideoCall(Base):
     
     sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
     
     status = Column(
         Enum(CallStatus, name="CallStatus", schema="Meet_up", inherit_schema=True),

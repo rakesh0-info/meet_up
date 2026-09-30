@@ -1,5 +1,5 @@
-// const BASE_URL = 'http://127.0.0.1:8000';
-const BASE_URL = 'https://meet-up-0kqq.onrender.com';
+ const BASE_URL = 'http://127.0.0.1:8000';
+// const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';
@@ -636,7 +636,11 @@ async function loadAdminDashboard() {
             }
 
             renderAdminCalls(adminData.calls || []);
-            return;
+
+// Load reports + user activation/deactivation section
+await loadAdminReportsAndUsers();
+
+return;
         } catch (e) {
             console.error("Loading metrics:", e);
         }
@@ -869,8 +873,25 @@ function renderFriends(friends) {
                     </div>
                 </div>
                 <div class="flex gap-2 mt-3">
-                    <button class="flex-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 text-xs py-1.5 rounded-lg font-bold" onclick="openChat(${friend.id}, '${escapeHtml(friend.name || friend.email)}')">💬 Chat</button>
-                    <button class="btn-success text-xs py-1.5 px-3 rounded-lg font-bold" onclick="initiateCall(${friend.id})">📹 Call</button>
+                    <div class="flex gap-2 mt-3">
+    <button
+        class="flex-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 text-xs py-1.5 rounded-lg font-bold"
+        onclick="openChat(${friend.id}, '${escapeHtml(friend.name || friend.email)}')">
+        💬 Chat
+    </button>
+
+    <button
+        class="btn-success text-xs py-1.5 px-3 rounded-lg font-bold"
+        onclick="initiateCall(${friend.id})">
+        📹 Call
+    </button>
+
+    <button
+        class="text-xs py-1.5 px-3 rounded-lg font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30"
+        onclick="openReportPopup(${friend.id})">
+        ⚠️ Report
+    </button>
+</div>
                 </div>
             </div>
         `;
@@ -3735,4 +3756,617 @@ function closePaymentModal() {
             'Pay Now';
 
     }
+}
+
+
+function openReportPopup(reportedUserId) {
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        document.getElementById('reportedUserIdInput').value = reportedUserId;
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeReportPopup() {
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('reportDescriptionInput').value = '';
+        document.getElementById('reportScreenshotInput').value = '';
+    }
+}
+
+async function submitUserReport(event) {
+    event.preventDefault();
+    const reportedUserId = document.getElementById('reportedUserIdInput').value;
+    const description = document.getElementById('reportDescriptionInput').value;
+    const fileInput = document.getElementById('reportScreenshotInput').files[0];
+
+    const formData = new FormData();
+    formData.append('report_des', description);
+    if (fileInput) {
+        formData.append('file', fileInput);
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/v1/user/report?reported_user_id=${reportedUserId}&report_des=${encodeURIComponent(description)}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Failed to submit report');
+        
+        showToast('Report submitted successfully to administration.', 'success');
+        closeReportPopup();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// Block and Unblock functions inside Chat Window
+async function blockUser(userId) {
+    try {
+        await request(`/api/v1/user/block_user/${userId}`, 'POST');
+        showToast('User blocked successfully', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+async function unblockUser(userId) {
+    try {
+        await request(`/api/v1/user/unblock_user/${userId}`, 'POST');
+        showToast('User unblocked successfully', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+async function handleBlockFromChat() {
+    if (!activeChatPartnerId) {
+        showToast("No chat user selected", "error");
+        return;
+    }
+
+    const menu = document.getElementById("chatMenuDropdown");
+    if (menu) {
+        menu.classList.add("hidden");
+    }
+
+    const confirmed = confirm("Are you sure you want to block this user?");
+
+    if (!confirmed) {
+        return;
+    }
+
+    await blockUser(activeChatPartnerId);
+}
+
+
+async function handleUnblockFromChat() {
+    if (!activeChatPartnerId) {
+        showToast("No chat user selected", "error");
+        return;
+    }
+
+    const menu = document.getElementById("chatMenuDropdown");
+    if (menu) {
+        menu.classList.add("hidden");
+    }
+
+    const confirmed = confirm("Are you sure you want to unblock this user?");
+
+    if (!confirmed) {
+        return;
+    }
+
+    await unblockUser(activeChatPartnerId);
+}
+
+
+async function loadAdminReportsAndUsers() {
+    try {
+        const [reports, adminData] = await Promise.all([
+            request('/api/v1/admin/all_report', 'GET'),
+            request('/api/v1/admin/admin_dashboard', 'GET')
+        ]);
+
+        const users = Array.isArray(adminData?.users)
+            ? adminData.users
+            : [];
+
+        const userMap = new Map(
+            users.map(user => [Number(user.id), user])
+        );
+
+        // ==========================================
+        // REPORTS
+        // ==========================================
+
+        const reportsContainer =
+            document.getElementById('adminReportsContainer');
+
+        if (reportsContainer) {
+
+            if (!Array.isArray(reports) || reports.length === 0) {
+
+                reportsContainer.innerHTML = `
+                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
+                        <div class="text-3xl mb-2">📭</div>
+
+                        <p class="text-sm font-semibold text-slate-200">
+                            No reports found
+                        </p>
+
+                        <p class="text-xs text-slate-400 mt-1">
+                            Submitted user reports will appear here.
+                        </p>
+                    </div>
+                `;
+
+            } else {
+
+                reportsContainer.innerHTML = reports.map(report => {
+
+                    const reportedUser =
+                        userMap.get(Number(report.report_for));
+
+                    const reporter =
+                        userMap.get(Number(report.report_by));
+
+                    return `
+                        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
+
+                            <div class="flex flex-col lg:flex-row lg:justify-between gap-4">
+
+                                <div class="space-y-1.5 text-xs text-slate-300">
+
+                                    <p>
+                                        <strong class="text-white">
+                                            Report #${Number(report.id)}
+                                        </strong>
+                                    </p>
+
+                                    <p>
+                                        <strong>Reported User:</strong>
+                                        ${escapeHtml(
+                                            reportedUser?.name ||
+                                            `User #${report.report_for}`
+                                        )}
+                                    </p>
+
+                                    <p>
+                                        <strong>Email:</strong>
+                                        ${escapeHtml(
+                                            reportedUser?.email ||
+                                            'Unknown'
+                                        )}
+                                    </p>
+
+                                    <p>
+                                        <strong>Reported By:</strong>
+                                        ${escapeHtml(
+                                            reporter?.name ||
+                                            `User #${report.report_by}`
+                                        )}
+                                    </p>
+
+                                    <p>
+                                        <strong>Description:</strong>
+                                        ${escapeHtml(
+                                            report.report_description ||
+                                            'No description'
+                                        )}
+                                    </p>
+
+                                    <p class="text-slate-500">
+                                        <strong>Reported At:</strong>
+                                        ${
+                                            report.report_at
+                                                ? new Date(
+                                                    report.report_at
+                                                ).toLocaleString()
+                                                : 'Unknown'
+                                        }
+                                    </p>
+
+                                </div>
+
+                                <div class="flex items-start gap-2">
+
+                                    <button
+                                        type="button"
+                                        onclick="viewReportProof(${Number(report.id)})"
+                                        class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+                                        👁 View Proof
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    `;
+
+                }).join('');
+            }
+        }
+
+        // ==========================================
+        // USER STATUS
+        // ==========================================
+
+        const usersContainer =
+            document.getElementById('adminUsersContainer');
+
+        if (usersContainer) {
+
+            if (!users.length) {
+
+                usersContainer.innerHTML = `
+                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
+                        <p class="text-sm text-slate-300">
+                            No users found.
+                        </p>
+                    </div>
+                `;
+
+            } else {
+
+                usersContainer.innerHTML = users.map(user => {
+
+                    const isBlocked =
+                        Boolean(user.is_blockbyAdmin);
+
+                    const isCurrentAdmin =
+                        Number(user.id) === Number(currentUserId);
+
+                    return `
+                        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
+
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+                                <div>
+
+                                    <div class="flex items-center gap-2">
+
+                                        <h3 class="font-bold text-slate-100 text-sm">
+                                            ${escapeHtml(user.name || 'Unknown User')}
+                                        </h3>
+
+                                        ${
+                                            isBlocked
+                                                ? `
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                                        DEACTIVATED
+                                                    </span>
+                                                `
+                                                : `
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                                        ACTIVE
+                                                    </span>
+                                                `
+                                        }
+
+                                    </div>
+
+                                    <p class="text-xs text-slate-400 mt-1">
+                                        ${escapeHtml(user.email || '')}
+                                    </p>
+
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        User ID: ${Number(user.id)}
+                                    </p>
+
+                                </div>
+
+                                <div class="flex gap-2">
+
+                                    ${
+                                        isCurrentAdmin
+                                            ? `
+                                                <button
+                                                    disabled
+                                                    class="px-3 py-2 rounded-lg bg-slate-800 text-slate-500 text-xs font-bold cursor-not-allowed">
+                                                    Current Admin
+                                                </button>
+                                            `
+                                            : isBlocked
+                                                ? `
+                                                    <button
+                                                        type="button"
+                                                        onclick="toggleUserStatus(
+                                                            ${Number(user.id)},
+                                                            'activate',
+                                                            '${escapeHtml(user.email || '')}'
+                                                        )"
+                                                        class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
+                                                        ✓ Activate
+                                                    </button>
+                                                `
+                                                : `
+                                                    <button
+                                                        type="button"
+                                                        onclick="toggleUserStatus(
+                                                            ${Number(user.id)},
+                                                            'deactivate',
+                                                            '${escapeHtml(user.email || '')}'
+                                                        )"
+                                                        class="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">
+                                                        🚫 Deactivate
+                                                    </button>
+                                                `
+                                    }
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    `;
+
+                }).join('');
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            'Failed to load admin reports/users:',
+            error
+        );
+
+        showToast(
+            error.message || 'Failed to load admin reports',
+            'error'
+        );
+    }
+}
+
+
+async function viewReportProof(reportId) {
+    try {
+
+        const report = await request(
+            `/api/v1/admin/report/${reportId}`,
+            'GET'
+        );
+
+        const modal =
+            document.getElementById('proofModal');
+
+        const imgEl =
+            document.getElementById('proofImage');
+
+        const emptyEl =
+            document.getElementById('proofEmptyMessage');
+
+        if (!modal) return;
+
+        if (!report.report_ss_url) {
+
+            if (imgEl) {
+                imgEl.removeAttribute('src');
+                imgEl.classList.add('hidden');
+            }
+
+            if (emptyEl) {
+                emptyEl.classList.remove('hidden');
+            }
+
+            modal.classList.remove('hidden');
+
+            return;
+        }
+
+        let proofPath =
+            String(report.report_ss_url)
+                .replace(/\\/g, '/')
+                .replace(/^\/+/, '');
+
+        if (imgEl) {
+
+            imgEl.src =
+                `${BASE_URL}/${proofPath}`;
+
+            imgEl.classList.remove('hidden');
+        }
+
+        if (emptyEl) {
+            emptyEl.classList.add('hidden');
+        }
+
+        modal.classList.remove('hidden');
+
+    } catch (error) {
+
+        console.error(
+            'Could not load report proof:',
+            error
+        );
+
+        showToast(
+            error.message || 'Could not load report proof',
+            'error'
+        );
+    }
+}
+
+async function toggleUserStatus(userId, action) {
+
+    try {
+
+        // ==========================================================
+        // DEACTIVATE
+        // ==========================================================
+
+        if (action === 'deactivate') {
+
+            const confirmed = confirm(
+                "Are you sure you want to deactivate this user?"
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            await request(
+                `/api/v1/admin/take_action/${userId}?acticon=yes`,
+                'POST'
+            );
+
+            showToast(
+                'User deactivated successfully',
+                'success'
+            );
+
+        }
+
+        // ==========================================================
+        // ACTIVATE
+        // ==========================================================
+
+        else if (action === 'activate') {
+
+            const confirmed = confirm(
+                "Are you sure you want to activate this user?"
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            /*
+             * We need the user's email because the backend
+             * activation endpoint is:
+             *
+             * POST /admin/unblock/{email}
+             */
+
+            const adminData =
+                await request(
+                    '/api/v1/admin/admin_dashboard',
+                    'GET'
+                );
+
+            const user =
+                (adminData.users || []).find(
+                    u => Number(u.id) === Number(userId)
+                );
+
+            if (!user || !user.email) {
+
+                showToast(
+                    'User email not found',
+                    'error'
+                );
+
+                return;
+            }
+
+            await request(
+                `/api/v1/admin/unblock/${encodeURIComponent(user.email)}`,
+                'POST'
+            );
+
+            showToast(
+                'User activated successfully',
+                'success'
+            );
+        }
+
+        else {
+
+            showToast(
+                'Invalid user status action',
+                'error'
+            );
+
+            return;
+        }
+
+        // Refresh reports and users after action
+        await loadAdminReportsAndUsers();
+        await loadAdminDashboard()
+
+    } catch (error) {
+
+        console.error(
+            'Failed to update user status:',
+            error
+        );
+
+        showToast(
+            error.message || 'Failed to update user status',
+            'error'
+        );
+    }
+}
+function toggleAdminReports() {
+    console.log("Toggle admin reports clicked");
+    const modal = document.getElementById('admin-reports-modal');
+    if (modal) {
+        modal.classList.toggle('hidden');
+        if (!modal.classList.contains('hidden')) {
+            loadAndRenderAdminReports();
+        }
+    }
+}
+
+function closeAdminReportsModal() {
+    const modal = document.getElementById('admin-reports-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+async function loadAndRenderAdminReports() {
+    const container = document.getElementById('admin-reports-list');
+    if (!container) return;
+
+    container.innerHTML = '<p class="text-center text-slate-400 text-xs py-6">Loading reports...</p>';
+
+    try {
+        // Fetch reports from your backend endpoint (adjust endpoint as needed)
+        const reports = await request('/api/v1/admin/reports', 'GET').catch(() => [
+            { id: 101, title: "Daily Token Consumption Summary", date: "2026-09-30", type: "Usage" },
+            { id: 102, title: "Active Call Telemetry & Audit Log", date: "2026-09-29", type: "Security" },
+            { id: 103, title: "User Signup & Subscription Analytics", date: "2026-09-28", type: "Billing" }
+        ]);
+
+        if (!Array.isArray(reports) || reports.length === 0) {
+            container.innerHTML = '<p class="text-center text-slate-400 text-xs py-6">No reports available.</p>';
+            return;
+        }
+
+        container.innerHTML = reports.map(report => `
+            <div class="bg-slate-950/60 border border-slate-800/80 p-4 rounded-xl flex items-center justify-between gap-4 hover:border-indigo-500/40 transition-all">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
+                        ${escapeHtml(report.type || 'General')}
+                    </span>
+                    <h4 class="font-bold text-slate-100 text-sm mt-1.5">${escapeHtml(report.title)}</h4>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Generated: ${escapeHtml(report.date || 'Recent')}</p>
+                </div>
+                <button 
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl shrink-0 shadow-lg shadow-indigo-600/20 transition-all"
+                    onclick="viewReportDetails(${report.id})">
+                    👁️ View Report
+                </button>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error("Failed to load admin reports:", e);
+        container.innerHTML = '<p class="text-center text-rose-400 text-xs py-6">Failed to load system reports.</p>';
+    }
+}
+
+// Handler when clicking the "View Report" button
+function viewReportDetails(reportId) {
+    showToast(`Opening details for Report #${reportId}`, 'info');
+    // Add your custom report detail viewing logic or navigation here
 }

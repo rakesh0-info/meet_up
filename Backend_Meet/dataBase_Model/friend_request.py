@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, Enum, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, Enum, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 from enums.Request_Status import re_status
@@ -15,6 +15,8 @@ class FriendRequest(Base):
         default=re_status.NOT_SENT,
         nullable=False
     )
+    is_blocked = Column(Boolean, default=False, nullable=False)
+    who_block = Column(Integer, nullable=True)
     send_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sender = relationship("User", foreign_keys=[sender_id])

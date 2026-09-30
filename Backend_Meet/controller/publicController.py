@@ -6,6 +6,9 @@ import os
 import re
 import time
 from typing import List, Optional
+
+from click import DateTime
+from dataBase_Model.chatModel import Chat_M
 from enums.upload_status import up_status
 from ai_client import client, pinecone_index
 
@@ -43,6 +46,7 @@ from jwts.jwt_config import ALGORITHM, SECRET_KEY, create_access_token, create_r
 from jwts.jwt_response_schemas import Token
 from mail.sendmail import send_mail
 from otp_generate.otp import generate_otp, get_otp_expiry
+
 from requestmodel.friend_request_request import friend_request_Model
 from requestmodel.loginRequest_model import LoginRequest
 from requestmodel.optRequest import otp_req
@@ -68,6 +72,7 @@ from  otp_generate.randomKey import get_random_letters
 from mail.sendmail import send_key
 from requestmodel.resetRequest import reset_pass
 from util_validate.pasword_name_validate import passwordCheack
+from dataBase_Model.reportModel import Reports
 
 
 client = genai.Client(
@@ -81,6 +86,8 @@ client = genai.Client(
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploaded_docs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+UPLOAD_DIR1 = os.path.join(os.path.dirname(os.path.dirname(__file__)), "reports")
+os.makedirs(UPLOAD_DIR1, exist_ok=True)
 
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
@@ -279,6 +286,9 @@ async def login(
 
         background_tasks.add_task(send_mail, user.email, otp)
         return f"message Account unverified. OTP sent to email. and this  your otp {otp} as smtp not support in render"
+    
+    if user.is_blockbyAdmin==True:
+        return f"your account is parmanently Block by admin  for understand  more about it  mail to Admin's email  phoenix0922173@gmail.com "
 
     access_token = create_access_token({"sub": user.email})
     refresh_token = create_refresh_token({"sub": user.email})
@@ -1243,3 +1253,196 @@ async def get_document_chat_history(
         }
         for chat in chats
     ]
+
+
+
+# block
+# unblock
+#  or notifi admin to block that preticular user 
+#  with the proof
+
+
+@router.post("/block_user/{id}")
+async def block_user(
+    id: int,
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(Role.USER))
+):
+    if curr.id == id:
+        raise HTTPException(status_code=400, detail="You cannot block yourself")
+
+  
+    friendship = db.query(FriendRequest).filter(
+        or_(
+            and_(FriendRequest.sender_id == curr.id, FriendRequest.receiver_id == id),
+            and_(FriendRequest.sender_id == id, FriendRequest.receiver_id == curr.id)
+        ),
+        FriendRequest.request_status == re_status.ACCEPT
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Active friendship not found")
+
+   
+    friendship.is_blocked = True
+    friendship.who_block = curr.id
+    db.commit()
+
+    
+    # db.query(Chat_M).filter(
+    #     or_(
+    #         and_(Chat_M.sender_id == curr.id, Chat_M.receiver_id == id),
+    #         and_(Chat_M.sender_id == id, Chat_M.receiver_id == curr.id)
+    #     )
+    # ).update({"who_block": curr.id, "isBlock": True}, synchronize_session=False)
+
+    # db.query(VideoCall).filter(
+    #     or_(
+    #         and_(VideoCall.sender_id == curr.id, VideoCall.receiver_id == id),
+    #         and_(VideoCall.sender_id == id, VideoCall.receiver_id == curr.id)
+    #     )
+    # ).update({"who_block": curr.id, "isBlock": True}, synchronize_session=False)
+    
+    # db.commit()
+
+    create_notification(
+        db=db,
+        user_id=id,
+        sender_id=curr.id,
+        message=f"{curr.name} blocked you",
+        notification_type="BLOCK_NOTIFICATION"
+    )
+
+    return {"message": "User blocked successfully"}
+
+
+@router.post("/unblock_user/{id}")
+async def unblock_user(
+    id: int,
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(Role.USER))
+):
+    
+    friendship = db.query(FriendRequest).filter(
+        or_(
+            and_(FriendRequest.sender_id == curr.id, FriendRequest.receiver_id == id),
+            and_(FriendRequest.sender_id == id, FriendRequest.receiver_id == curr.id)
+        ),
+        FriendRequest.who_block == curr.id
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Block record not found or you didn't block this user")
+
+   
+    friendship.is_blocked = False
+    friendship.who_block = None
+
+   
+    # db.query(Chat_M).filter(
+    #     or_(
+    #         and_(Chat_M.sender_id == curr.id, Chat_M.receiver_id == id),
+    #         and_(Chat_M.sender_id == id, Chat_M.receiver_id == curr.id)
+    #     ),
+    #     Chat_M.who_block == curr.id
+    # ).update({"who_block": None, "isBlock": False}, synchronize_session=False)
+
+    # db.query(VideoCall).filter(
+    #     or_(
+    #         and_(VideoCall.sender_id == curr.id, VideoCall.receiver_id == id),
+    #         and_(VideoCall.sender_id == id, VideoCall.receiver_id == curr.id)
+    #     ),
+    #     VideoCall.who_block == curr.id
+    # ).update({"who_block": None, "isBlock": False}, synchronize_session=False)
+
+    # db.commit()
+
+    create_notification(
+        db=db,
+        user_id=id,
+        sender_id=curr.id,
+        message=f"{curr.name} unblocked you",
+        notification_type="UNBLOCK_NOTIFICATION"
+    )
+
+    return {"message": "User unblocked successfully"}
+     
+
+
+
+
+
+
+@router.post("/report")
+async def report_to_admin(
+    reported_user_id: int,
+    report_des: str,
+    file: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    curr: User = Depends(require_roles(Role.USER))
+):
+    try:
+        # 1. Prevent reporting yourself
+        if curr.id == reported_user_id:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="You cannot report yourself."
+            )
+
+        # 2. Check if the user being reported exists
+        target_user = db.query(User).filter(User.id == reported_user_id).first()
+        if not target_user:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="The user you are trying to report does not exist."
+            )
+
+        # 3. Handle file upload (screenshot) if provided
+        file_path = None
+        if file:
+            file_extension = file.filename.split(".")[-1]
+            unique_filename = f"report_{curr.id}_{reported_user_id}_{os.urandom(4).hex()}.{file_extension}"
+            file_path = os.path.join(UPLOAD_DIR1, unique_filename)
+            
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+        # 4. Save to Reports table with dynamic values
+        new_report = Reports(
+            report_ss_url=file_path,
+            report_by=curr.id,
+            report_description=report_des,
+            report_for=reported_user_id,
+            report_at= datetime.utcnow()
+        )
+        db.add(new_report)
+        db.commit()
+        db.refresh(new_report) # Fixed: passed new_report object
+
+        # 5. Create notification for admin (Removed invalid db=db argument)
+        new_report_notification = Notification(
+            user_id=1,  # Set this to your Admin's user ID
+            sender_id=curr.id,
+            message=f"User {curr.name} reported {target_user.name}.",
+            notification_type="ADMIN_REPORT",
+        )
+
+        db.add(new_report_notification)
+        db.commit()
+        db.refresh(new_report_notification)
+
+        return {
+            "status": "success",
+            "message": "Report submitted successfully to administration.",
+            "report_id": new_report.id
+        }
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+    
