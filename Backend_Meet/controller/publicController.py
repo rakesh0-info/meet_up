@@ -658,7 +658,7 @@ async def send_friend_request(
             if existing_request.request_status == re_status.SENT:
                 raise HTTPException(status_code=400, detail="Friend request already sent.")
             
-            elif existing_request.request_status == re_status.REJECTED:
+            elif existing_request.request_status == re_status.REJECT:
                 # Allow re-sending by updating the old request back to SENT
                 # Make sure current_user is the sender this time around
                 existing_request.sender_id = current_user.id
@@ -676,7 +676,7 @@ async def send_friend_request(
                 )
                 return {"message": "Friend request sent again successfully"}
             
-            elif existing_request.request_status == re_status.ACCEPTED:
+            elif existing_request.request_status == re_status.ACCEPT:
                 raise HTTPException(status_code=400, detail="You are already connected.")
 
     new_request = FriendRequest(
