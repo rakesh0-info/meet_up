@@ -775,7 +775,7 @@ async function loadUserDashboard() {
             renderFriends(friends || []);
             renderCompletedCalls(dashboard.completed_calls || []);
 
-            const usersGrid = document.getElementById('org-users-grid');
+            const usersGrid = document.getElementById('users-grid');
             const availableUsers = dashboard.available_users || [];
 
             if (usersGrid) {
