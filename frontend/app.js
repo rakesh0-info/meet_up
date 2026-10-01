@@ -3839,10 +3839,10 @@ async function handleBlockFromChat() {
     if (!confirm('Are you sure you want to block this user?')) return;
 
     try {
-        const response = await unblockChatUser(activeChatPartnerId);
-        showToast(response.message || 'User unblocked successfully', 'success');
+        const response = await blockUser(activeChatPartnerId);
+        showToast(response.message || 'User blocked successfully', 'success');
     } catch (error) {
-        showToast(error.message || 'Failed to unblock user', 'error');
+        showToast(error.message || 'Failed to block user', 'error');
     }
 }
 
