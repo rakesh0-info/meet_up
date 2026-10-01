@@ -1,3 +1,4 @@
+
 //  const BASE_URL = 'http://127.0.0.1:8000';
   const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
@@ -124,30 +125,81 @@ function appendTranscriptSafe(speaker, text) {
     appendTranscript(speaker, text);
 }
 
-function publishTranscript(text, speaker) {
-    const transcript = {
-        type: "TRANSCRIPT",
-        text,
-        speaker,
-        participantName: speaker,
-        timestamp: Date.now()
-    };
+// -------------------------------------------------------------------
+// REALTIME TRANSCRIPT PUBLISHER
+//
+// IMPORTANT:
+// Browser SpeechRecognition produces the transcript on the speaker's
+// browser. The FastAPI call WebSocket is the single realtime relay.
+// Do NOT also publish the same transcript through LiveKit DataReceived,
+// otherwise both clients can receive duplicate transcript entries.
+//
+// If the call WebSocket is still CONNECTING, the message is queued and
+// flushed automatically from onopen.
+// -------------------------------------------------------------------
+let pendingTranscriptMessages = [];
+let callWsRoomId = null;
+let callWsReconnectTimer = null;
+let callWsManuallyClosed = false;
 
+function queueOrSendCallMessage(message) {
     if (callWs && callWs.readyState === WebSocket.OPEN) {
-        callWs.send(JSON.stringify({
-            ...transcript,
-            type: "LIVEKIT_TRANSCRIPT"
-        }));
-    }
-
-    if (livekitRoom && livekitRoom.localParticipant) {
         try {
-            const payload = new TextEncoder().encode(JSON.stringify(transcript));
-            livekitRoom.localParticipant.publishData(payload, { reliable: true });
+            callWs.send(JSON.stringify(message));
+            return true;
         } catch (error) {
-            console.warn("LiveKit transcript publish warning:", error);
+            console.warn("Call WebSocket send failed; queuing message:", error);
         }
     }
+
+    pendingTranscriptMessages.push(message);
+
+    // Keep the queue bounded if the connection is unavailable for a long time.
+    if (pendingTranscriptMessages.length > 100) {
+        pendingTranscriptMessages.splice(
+            0,
+            pendingTranscriptMessages.length - 100
+        );
+    }
+
+    return false;
+}
+
+function flushPendingTranscriptMessages() {
+    if (!callWs || callWs.readyState !== WebSocket.OPEN) return;
+
+    const queued = pendingTranscriptMessages.splice(0);
+
+    for (const message of queued) {
+        try {
+            callWs.send(JSON.stringify(message));
+        } catch (error) {
+            console.warn("Failed to flush transcript message:", error);
+            pendingTranscriptMessages.unshift(message);
+            break;
+        }
+    }
+}
+
+function publishTranscript(text, speaker) {
+    const transcriptText = String(text || "").trim();
+    if (!transcriptText) return;
+
+    const transcript = {
+        type: "LIVEKIT_TRANSCRIPT",
+        room_id: currentRoomId || lastRoomId || callWsRoomId,
+        sender_id: Number(currentUserId) || null,
+        participantId: Number(currentUserId) || null,
+        participantName: speaker || currentEmail || "Participant",
+        speaker: speaker || currentEmail || "Participant",
+        text: transcriptText,
+        timestamp: Date.now(),
+        is_final: true
+    };
+
+    console.log("[Realtime Transcript] publishing:", transcript);
+
+    queueOrSendCallMessage(transcript);
 }
 
 function showCaption(speaker, text) {
@@ -1703,101 +1755,208 @@ function toggleNotifications() {
 let notificationReconnectTimeout = null;
 
 function initNotificationWebSocket() {
-    if (!currentUserId || !isRealJwt(accessToken)) return;
-    if (notifWs) notifWs.close();
+    if (!currentUserId || !isRealJwt(accessToken)) {
+        console.warn(
+            "[Notification WS] skipped: missing user ID or real JWT"
+        );
+        return;
+    }
+
+    if (notifWs) {
+        try {
+            notifWs.close();
+        } catch (e) {}
+        notifWs = null;
+    }
 
     const wsUrl = BASE_URL.replace(/^http/, 'ws');
-    try {
-        notifWs = new WebSocket(
-            `${wsUrl}/api/v1/notifications/ws/${currentUserId}?token=${encodeURIComponent(accessToken)}`
-        );
+    const wsEndpoint =
+        `${wsUrl}/api/v1/notifications/ws/${encodeURIComponent(currentUserId)}` +
+        `?token=${encodeURIComponent(accessToken)}`;
 
-        notifWs.onopen = () => {
-            console.log("Notification WebSocket connected.");
+    console.log(
+        "[Notification WS] connecting:",
+        wsEndpoint.replace(accessToken, "***")
+    );
+
+    try {
+        const socket = new WebSocket(wsEndpoint);
+        notifWs = socket;
+
+        socket.onopen = () => {
+            if (notifWs !== socket) return;
+
+            console.log("[Notification WS] CONNECTED");
+
             if (notificationReconnectTimeout) {
                 clearTimeout(notificationReconnectTimeout);
                 notificationReconnectTimeout = null;
             }
+
+            // Initial synchronization only. Do not poll after every WS event.
             fetchNotifications();
         };
 
-        notifWs.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (notifWs !== socket) return;
+
             try {
                 const payload = JSON.parse(event.data);
-                const notification = payload.notification || payload.data || payload;
-                 handleNotificationWebSocketMessage(payload);
-                if (notification && (notification.notification_type || notification.message || notification.id)) {
+
+                console.log(
+                    "[Notification WS] realtime event:",
+                    payload
+                );
+
+                const notification =
+                    payload?.notification ||
+                    payload?.data?.notification ||
+                    payload?.data ||
+                    payload;
+
+                // Process the realtime event immediately.
+                handleNotificationWebSocketMessage(payload);
+
+                if (
+                    notification &&
+                    typeof notification === "object" &&
+                    (
+                        notification.notification_type ||
+                        notification.type ||
+                        notification.message ||
+                        notification.id
+                    )
+                ) {
                     addRealtimeNotification(notification);
                 }
+
+                // IMPORTANT:
+                // Do not immediately call fetchNotifications() here.
+                // Doing so can race the backend transaction that created the
+                // notification and overwrite the just-received realtime UI.
             } catch (e) {
-                console.warn("Notification WebSocket payload warning:", e);
+                console.warn(
+                    "[Notification WS] payload warning:",
+                    e,
+                    event.data
+                );
             }
-            fetchNotifications();
         };
 
-        notifWs.onerror = (err) => {
-            console.warn("Notification WebSocket error:", err);
+        socket.onerror = (err) => {
+            if (notifWs !== socket) return;
+            console.warn("[Notification WS] error:", err);
         };
 
-        notifWs.onclose = () => {
-            notificationReconnectTimeout = setTimeout(() => {
-                initNotificationWebSocket();
-            }, 5000);
+        socket.onclose = (event) => {
+            if (notifWs === socket) {
+                notifWs = null;
+            }
+
+            console.warn(
+                `[Notification WS] closed code=${event.code} reason=${event.reason || "none"}`
+            );
+
+            if (!isRealJwt(accessToken) || !currentUserId) {
+                return;
+            }
+
+            if (!notificationReconnectTimeout) {
+                notificationReconnectTimeout = setTimeout(() => {
+                    notificationReconnectTimeout = null;
+
+                    if (
+                        isRealJwt(accessToken) &&
+                        currentUserId
+                    ) {
+                        initNotificationWebSocket();
+                    }
+                }, 1500);
+            }
         };
     } catch (err) {
-        console.warn("WebSocket init error:", err);
+        console.error(
+            "[Notification WS] initialization failed:",
+            err
+        );
     }
 }
 
-
-
 function handleNotificationWebSocketMessage(data) {
-
     console.log(
-        'Realtime notification received:',
+        "[Realtime Notification] received:",
         data
     );
 
-    // -----------------------------------------
-    // FRIEND REQUEST ACCEPTED
-    // -----------------------------------------
+    const notification =
+        data?.notification ||
+        data?.data?.notification ||
+        data?.data ||
+        data;
+
     const notificationType = String(
-        data.notification_type ||
-        data.type ||
-        data.notification?.notification_type ||
-        ''
+        notification?.notification_type ||
+        notification?.type ||
+        data?.notification_type ||
+        data?.type ||
+        ""
     ).toUpperCase();
 
-    if (notificationType === 'FRIEND_REQUEST_ACCEPTED') {
-
+    // ------------------------------------------------------------
+    // FRIEND REQUEST ACCEPTED
+    // ------------------------------------------------------------
+    if (
+        notificationType === "FRIEND_REQUEST_ACCEPTED" ||
+        notificationType === "FRIEND_REQUEST_ACCEPT"
+    ) {
         console.log(
-            'Friend accepted - refreshing contacts.'
+            "[Realtime Notification] friend request accepted."
         );
 
-        // Refresh THIS user's
-        // Pinned Contacts & Teammates
-        if (typeof loadUserDashboard === 'function') {
-
+        // Refresh this user's friends immediately.
+        if (typeof loadUserDashboard === "function") {
             loadUserDashboard()
                 .then(() => {
                     console.log(
-                        'Pinned Contacts updated in realtime.'
+                        "[Realtime Notification] friends updated."
                     );
                 })
                 .catch(error => {
                     console.error(
-                        'Contact refresh failed:',
+                        "[Realtime Notification] friend refresh failed:",
                         error
                     );
                 });
         }
     }
 
-    // Always refresh notifications
-    fetchNotifications();
+    // ------------------------------------------------------------
+    // FRIEND REQUEST CREATED
+    // ------------------------------------------------------------
+    if (notificationType === "FRIEND_REQUEST") {
+        console.log(
+            "[Realtime Notification] new friend request."
+        );
+
+        // The notification card is already inserted by
+        // addRealtimeNotification().
+        // No REST round trip is required just to display it.
+    }
+
+    // ------------------------------------------------------------
+    // CALL EVENTS
+    // ------------------------------------------------------------
+    if (
+        notificationType === "INCOMING_CALL" ||
+        notificationType === "CALL_ACCEPTED" ||
+        notificationType === "CALL_REJECTED" ||
+        notificationType === "CALL_SUMMARY_READY"
+    ) {
+        console.log(
+            `[Realtime Notification] call event: ${notificationType}`
+        );
+    }
 }
-
-
 
 async function initiateCall(receiverId) {
     try {
@@ -1928,22 +2087,9 @@ async function joinVideoCallSession(roomId) {
             endCallSessionUI();
         });
 
-        livekitRoom.on(LK.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
-            try {
-                const strData = new TextDecoder().decode(payload);
-                const data = JSON.parse(strData);
-                const text = (data.text || data.message || "").trim();
-                const speaker = data.speaker || data.participantName || (participant ? participant.identity : "Participant");
-
-                if (text) {
-                    appendTranscriptSafe(speaker, text);
-                    showCaption(speaker, text);
-                }
-            } catch (err) {
-                console.warn("DataReceived parse warning:", err);
-            }
-        });
-
+        // Transcript realtime is relayed through the FastAPI call WebSocket.
+        // Do not use LiveKit DataReceived for the same transcript payload,
+        // otherwise each transcript can be rendered twice.
         await livekitRoom.connect(livekitUrl, token);
         console.log("Connected successfully to LiveKit room:", roomId);
 
@@ -1985,7 +2131,18 @@ async function setupLocalMediaFallback() {
 }
 
 function leaveVideoCallSession() {
+    callWsManuallyClosed = true;
+
+    if (callWsReconnectTimer) {
+        clearTimeout(callWsReconnectTimer);
+        callWsReconnectTimer = null;
+    }
+
+    pendingTranscriptMessages = [];
+    callWsRoomId = null;
+
     stopAutoSpeechToText();
+
     if (livekitRoom) {
         try {
             livekitRoom.disconnect();
@@ -1994,10 +2151,16 @@ function leaveVideoCallSession() {
         }
         livekitRoom = null;
     }
+
     if (callWs) {
-        callWs.close();
+        try {
+            callWs.close();
+        } catch (e) {
+            console.warn("Call WebSocket close warning:", e);
+        }
         callWs = null;
     }
+
     endCallSessionUI();
 }
 
@@ -2020,31 +2183,92 @@ function endCallSessionUI() {
 }
 
 function connectCallWebSocket(roomId) {
-    if (callWs) callWs.close();
+    callWsManuallyClosed = false;
+    callWsRoomId = roomId;
+
+    if (callWsReconnectTimer) {
+        clearTimeout(callWsReconnectTimer);
+        callWsReconnectTimer = null;
+    }
 
     if (!currentUserId) {
         console.warn("Cannot open Call WebSocket: currentUserId is null.");
         return;
     }
 
-    const wsUrl = BASE_URL.replace(/^http/, 'ws');
-    try {
-        callWs = new WebSocket(
-            `${wsUrl}/api/v1/call/ws/${encodeURIComponent(roomId)}/${currentUserId}?token=${encodeURIComponent(accessToken)}`
-        );
+    // Do not create multiple call sockets for the same room.
+    if (
+        callWs &&
+        (callWs.readyState === WebSocket.OPEN ||
+            callWs.readyState === WebSocket.CONNECTING) &&
+        callWsRoomId === roomId
+    ) {
+        return;
+    }
 
-        callWs.onopen = () => {
-            console.log(`Connected to call room WS: ${roomId}`);
+    if (callWs) {
+        try {
+            callWs.close();
+        } catch (e) {
+            console.warn("Previous Call WebSocket close warning:", e);
+        }
+        callWs = null;
+    }
+
+    const wsUrl = BASE_URL.replace(/^http/, 'ws');
+    const wsEndpoint =
+        `${wsUrl}/api/v1/call/ws/${encodeURIComponent(roomId)}/${encodeURIComponent(currentUserId)}` +
+        `?token=${encodeURIComponent(accessToken)}`;
+
+    console.log("[Call WS] connecting:", wsEndpoint.replace(accessToken, "***"));
+
+    try {
+        const socket = new WebSocket(wsEndpoint);
+        callWs = socket;
+
+        socket.onopen = () => {
+            // Ignore a stale socket that was replaced while connecting.
+            if (callWs !== socket) return;
+
+            console.log(`[Call WS] CONNECTED room=${roomId}`);
+
+            // Critical fix:
+            // SpeechRecognition can finish a phrase before the websocket
+            // handshake is complete. Flush those messages now.
+            flushPendingTranscriptMessages();
         };
 
-        callWs.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (callWs !== socket) return;
+
             try {
-                const data = JSON.parse(event.data);
-                const msgType = (data.type || '').toUpperCase();
+                const raw = JSON.parse(event.data);
+
+                console.log("[Call WS] received:", raw);
+
+                // Backends may return the actual event directly or nested
+                // inside data/message.
+                const data =
+                    raw?.data && typeof raw.data === "object"
+                        ? { ...raw, ...raw.data }
+                        : raw;
+
+                const msgType = String(
+                    data?.type ||
+                    data?.event ||
+                    data?.notification_type ||
+                    ""
+                ).toUpperCase();
 
                 if (msgType === "MESSAGE_SEEN") {
-                    console.log(`Messages seen by user ID: ${data.reader_id}`);
-                    document.querySelectorAll(`.message-item[data-sender="${data.sender_id}"] .read-receipt`)
+                    console.log(
+                        `Messages seen by user ID: ${data.reader_id}`
+                    );
+
+                    document
+                        .querySelectorAll(
+                            `.message-item[data-sender="${data.sender_id}"] .read-receipt`
+                        )
                         .forEach(el => {
                             el.innerHTML = "✓✓ Seen";
                             el.classList.add("text-indigo-400");
@@ -2052,43 +2276,127 @@ function connectCallWebSocket(roomId) {
                 }
 
                 if (msgType === "CALL_ENDED_NO_TOKENS") {
-                    alert(data.message || "Your token balance has run out. The call has been terminated.");
+                    alert(
+                        data.message ||
+                        "Your token balance has run out. The call has been terminated."
+                    );
+
                     leaveVideoCallSession();
                     fetchNotifications();
                     return;
                 }
 
-                if (msgType === "BALANCE_UPDATE" || data.current_balance !== undefined) {
-                    updateWalletDisplay(data.current_balance);
+                if (
+                    msgType === "BALANCE_UPDATE" ||
+                    data.current_balance !== undefined
+                ) {
+                    updateWalletDisplay(
+                        data.current_balance !== undefined
+                            ? data.current_balance
+                            : data.token_balance
+                    );
                 }
 
-                if (msgType === "TOKEN_DEDUCTION" || msgType === "BALANCE_UPDATE" || data.current_balance !== undefined || data.token_balance !== undefined) {
-                    const newBalance = data.current_balance !== undefined ? data.current_balance : data.token_balance;
+                if (
+                    msgType === "TOKEN_DEDUCTION" ||
+                    msgType === "BALANCE_UPDATE" ||
+                    data.current_balance !== undefined ||
+                    data.token_balance !== undefined
+                ) {
+                    const newBalance =
+                        data.current_balance !== undefined
+                            ? data.current_balance
+                            : data.token_balance;
+
                     if (newBalance !== undefined) {
                         updateWalletDisplay(newBalance);
                     }
                 }
 
-                if (msgType === "LIVE_CAPTION" || msgType === "TRANSCRIPT" || msgType === "LIVEKIT_TRANSCRIPT") {
-                    const speaker = data.speaker || data.participantName || data.user_email || "Speaker";
-                    const text = data.text || data.translation || data.original || "";
+                // Backend's realtime transcript event.
+                // The backend broadcasts LIVE_CAPTION to every participant.
+                if (
+                    msgType === "LIVE_CAPTION" ||
+                    msgType === "TRANSCRIPT" ||
+                    msgType === "LIVEKIT_TRANSCRIPT"
+                ) {
+                    const speaker =
+                        data.speaker ||
+                        data.participantName ||
+                        data.participant_name ||
+                        data.user_email ||
+                        "Speaker";
 
-                    if (text) {
-                        appendTranscriptSafe(speaker, text);
-                        showCaption(speaker, text);
+                    const transcriptText =
+                        data.text ||
+                        data.translation ||
+                        data.original ||
+                        data.transcript ||
+                        "";
+
+                    if (String(transcriptText).trim()) {
+                        appendTranscriptSafe(
+                            speaker,
+                            String(transcriptText).trim()
+                        );
+
+                        showCaption(
+                            speaker,
+                            String(transcriptText).trim()
+                        );
                     }
                 }
             } catch (err) {
-                console.error("Error parsing WebSocket message:", err);
+                console.error(
+                    "[Call WS] message parse error:",
+                    err,
+                    event.data
+                );
             }
         };
 
-        callWs.onerror = (err) => console.warn("Call WebSocket error:", err);
+        socket.onerror = (err) => {
+            if (callWs !== socket) return;
+            console.warn("[Call WS] error:", err);
+        };
+
+        socket.onclose = (event) => {
+            if (callWs === socket) {
+                callWs = null;
+            }
+
+            console.warn(
+                `[Call WS] closed room=${roomId} code=${event.code} reason=${event.reason || "none"}`
+            );
+
+            if (
+                callWsManuallyClosed ||
+                !livekitRoom ||
+                !currentRoomId
+            ) {
+                return;
+            }
+
+            // Keep realtime alive if Render/network temporarily drops
+            // the websocket.
+            if (!callWsReconnectTimer) {
+                callWsReconnectTimer = setTimeout(() => {
+                    callWsReconnectTimer = null;
+
+                    if (
+                        !callWsManuallyClosed &&
+                        livekitRoom &&
+                        currentRoomId
+                    ) {
+                        connectCallWebSocket(currentRoomId);
+                    }
+                }, 1500);
+            }
+        };
     } catch (err) {
-        console.warn("Call WS init warning:", err);
+        console.error("[Call WS] initialization failed:", err);
     }
 }
-
 async function generateCallSummary() {
     await fetchSummary();
 }
@@ -2215,6 +2523,15 @@ async function markNotificationAsRead(notificationId, event) {
 }
 
 async function handleLogout() {
+    callWsManuallyClosed = true;
+    if (callWsReconnectTimer) {
+        clearTimeout(callWsReconnectTimer);
+        callWsReconnectTimer = null;
+    }
+    if (notificationReconnectTimeout) {
+        clearTimeout(notificationReconnectTimeout);
+        notificationReconnectTimeout = null;
+    }
     try {
         if (typeof leaveVideoCallSession === 'function') {
             await leaveVideoCallSession();
