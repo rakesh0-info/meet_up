@@ -8,6 +8,7 @@ import time
 from typing import List, Optional
 
 from click import DateTime
+from dataBase_Model.blockUser_model import UserBlock
 from dataBase_Model.chatModel import Chat_M
 from enums.upload_status import up_status
 from ai_client import client, pinecone_index
@@ -1271,7 +1272,7 @@ async def block_user(
     if curr.id == id:
         raise HTTPException(status_code=400, detail="You cannot block yourself")
 
-  
+    # 1. Verify that an active friendship exists between the two users
     friendship = db.query(FriendRequest).filter(
         or_(
             and_(FriendRequest.sender_id == curr.id, FriendRequest.receiver_id == id),
@@ -1281,30 +1282,26 @@ async def block_user(
     ).first()
 
     if not friendship:
-        raise HTTPException(status_code=404, detail="Active friendship not found")
+        raise HTTPException(
+            status_code=404, 
+            detail="You can only block users who are friends with you"
+        )
 
-   
-    friendship.is_blocked = True
-    friendship.who_block = curr.id
+    # 2. Check if already blocked to avoid integrity errors
+    existing_block = db.query(UserBlock).filter_by(
+        blocker_id=curr.id, 
+        blocked_id=id
+    ).first()
+    
+    if existing_block:
+        raise HTTPException(status_code=400, detail="User is already blocked")
+
+    # 3. Create the block record (Row deletion approach)
+    new_block = UserBlock(blocker_id=curr.id, blocked_id=id)
+    db.add(new_block)
     db.commit()
 
-    
-    # db.query(Chat_M).filter(
-    #     or_(
-    #         and_(Chat_M.sender_id == curr.id, Chat_M.receiver_id == id),
-    #         and_(Chat_M.sender_id == id, Chat_M.receiver_id == curr.id)
-    #     )
-    # ).update({"who_block": curr.id, "isBlock": True}, synchronize_session=False)
-
-    # db.query(VideoCall).filter(
-    #     or_(
-    #         and_(VideoCall.sender_id == curr.id, VideoCall.receiver_id == id),
-    #         and_(VideoCall.sender_id == id, VideoCall.receiver_id == curr.id)
-    #     )
-    # ).update({"who_block": curr.id, "isBlock": True}, synchronize_session=False)
-    
-    # db.commit()
-
+    # 4. Trigger notification
     create_notification(
         db=db,
         user_id=id,
@@ -1316,47 +1313,34 @@ async def block_user(
     return {"message": "User blocked successfully"}
 
 
+
+
 @router.post("/unblock_user/{id}")
 async def unblock_user(
     id: int,
     db: Session = Depends(get_db),
     curr: User = Depends(require_roles(Role.USER))
 ):
-    
-    friendship = db.query(FriendRequest).filter(
-        or_(
-            and_(FriendRequest.sender_id == curr.id, FriendRequest.receiver_id == id),
-            and_(FriendRequest.sender_id == id, FriendRequest.receiver_id == curr.id)
-        ),
-        FriendRequest.who_block == curr.id
+    if curr.id == id:
+        raise HTTPException(status_code=400, detail="You cannot unblock yourself")
+
+    # 1. Find the existing block record created by the current user
+    block_record = db.query(UserBlock).filter_by(
+        blocker_id=curr.id, 
+        blocked_id=id
     ).first()
 
-    if not friendship:
-        raise HTTPException(status_code=404, detail="Block record not found or you didn't block this user")
+    if not block_record:
+        raise HTTPException(
+            status_code=404, 
+            detail="Block record not found or you didn't block this user"
+        )
 
-   
-    friendship.is_blocked = False
-    friendship.who_block = None
+    
+    db.delete(block_record)
+    db.commit()
 
-   
-    # db.query(Chat_M).filter(
-    #     or_(
-    #         and_(Chat_M.sender_id == curr.id, Chat_M.receiver_id == id),
-    #         and_(Chat_M.sender_id == id, Chat_M.receiver_id == curr.id)
-    #     ),
-    #     Chat_M.who_block == curr.id
-    # ).update({"who_block": None, "isBlock": False}, synchronize_session=False)
-
-    # db.query(VideoCall).filter(
-    #     or_(
-    #         and_(VideoCall.sender_id == curr.id, VideoCall.receiver_id == id),
-    #         and_(VideoCall.sender_id == id, VideoCall.receiver_id == curr.id)
-    #     ),
-    #     VideoCall.who_block == curr.id
-    # ).update({"who_block": None, "isBlock": False}, synchronize_session=False)
-
-    # db.commit()
-
+  
     create_notification(
         db=db,
         user_id=id,
@@ -1366,8 +1350,6 @@ async def unblock_user(
     )
 
     return {"message": "User unblocked successfully"}
-     
-
 
 
 
@@ -1382,14 +1364,14 @@ async def report_to_admin(
     curr: User = Depends(require_roles(Role.USER))
 ):
     try:
-        # 1. Prevent reporting yourself
+        
         if curr.id == reported_user_id:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="You cannot report yourself."
             )
 
-        # 2. Check if the user being reported exists
+       
         target_user = db.query(User).filter(User.id == reported_user_id).first()
         if not target_user:
             raise HTTPException(
@@ -1397,7 +1379,7 @@ async def report_to_admin(
                 detail="The user you are trying to report does not exist."
             )
 
-        # 3. Handle file upload (screenshot) if provided
+      
         file_path = None
         if file:
             file_extension = file.filename.split(".")[-1]
@@ -1407,7 +1389,7 @@ async def report_to_admin(
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-        # 4. Save to Reports table with dynamic values
+        
         new_report = Reports(
             report_ss_url=file_path,
             report_by=curr.id,
@@ -1417,11 +1399,11 @@ async def report_to_admin(
         )
         db.add(new_report)
         db.commit()
-        db.refresh(new_report) # Fixed: passed new_report object
+        db.refresh(new_report) 
 
-        # 5. Create notification for admin (Removed invalid db=db argument)
+      
         new_report_notification = Notification(
-            user_id=1,  # Set this to your Admin's user ID
+            user_id=1, 
             sender_id=curr.id,
             message=f"User {curr.name} reported {target_user.name}.",
             notification_type="ADMIN_REPORT",

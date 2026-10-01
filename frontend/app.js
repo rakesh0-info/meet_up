@@ -1,5 +1,5 @@
-// const BASE_URL = 'http://127.0.0.1:8000';
- const BASE_URL = 'https://meet-up-0kqq.onrender.com';
+ const BASE_URL = 'http://127.0.0.1:8000';
+//  const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';
@@ -3759,22 +3759,22 @@ function closePaymentModal() {
 }
 
 
-function openReportPopup(reportedUserId) {
-    const modal = document.getElementById('reportModal');
-    if (modal) {
-        document.getElementById('reportedUserIdInput').value = reportedUserId;
-        modal.classList.remove('hidden');
-    }
-}
+// function openReportPopup(reportedUserId) {
+//     const modal = document.getElementById('reportModal');
+//     if (modal) {
+//         document.getElementById('reportedUserIdInput').value = reportedUserId;
+//         modal.classList.remove('hidden');
+//     }
+// }
 
-function closeReportPopup() {
-    const modal = document.getElementById('reportModal');
-    if (modal) {
-        modal.classList.add('hidden');
-        document.getElementById('reportDescriptionInput').value = '';
-        document.getElementById('reportScreenshotInput').value = '';
-    }
-}
+// function closeReportPopup() {
+//     const modal = document.getElementById('reportModal');
+//     if (modal) {
+//         modal.classList.add('hidden');
+//         document.getElementById('reportDescriptionInput').value = '';
+//         document.getElementById('reportScreenshotInput').value = '';
+//     }
+// }
 
 async function submitUserReport(event) {
     event.preventDefault();
@@ -3816,14 +3816,14 @@ async function blockUser(userId) {
     }
 }
 
-async function unblockUser(userId) {
-    try {
-        await request(`/api/v1/user/unblock_user/${userId}`, 'POST');
-        showToast('User unblocked successfully', 'success');
-    } catch (error) {
-        showToast(error.message, 'error');
-    }
-}
+// async function unblockUser(userId) {
+//     try {
+//         await request(`/api/v1/user/unblock_user/${userId}`, 'POST');
+//         showToast('User unblocked successfully', 'success');
+//     } catch (error) {
+//         showToast(error.message, 'error');
+//     }
+// }
 
 async function handleBlockFromChat() {
     if (!activeChatPartnerId) {
@@ -3867,264 +3867,264 @@ async function handleUnblockFromChat() {
 }
 
 
-async function loadAdminReportsAndUsers() {
-    try {
-        const [reports, adminData] = await Promise.all([
-            request('/api/v1/admin/all_report', 'GET'),
-            request('/api/v1/admin/admin_dashboard', 'GET')
-        ]);
+// async function loadAdminReportsAndUsers() {
+//     try {
+//         const [reports, adminData] = await Promise.all([
+//             request('/api/v1/admin/all_report', 'GET'),
+//             request('/api/v1/admin/admin_dashboard', 'GET')
+//         ]);
 
-        const users = Array.isArray(adminData?.users)
-            ? adminData.users
-            : [];
+//         const users = Array.isArray(adminData?.users)
+//             ? adminData.users
+//             : [];
 
-        const userMap = new Map(
-            users.map(user => [Number(user.id), user])
-        );
+//         const userMap = new Map(
+//             users.map(user => [Number(user.id), user])
+//         );
 
-        // ==========================================
-        // REPORTS
-        // ==========================================
+//         // ==========================================
+//         // REPORTS
+//         // ==========================================
 
-        const reportsContainer =
-            document.getElementById('adminReportsContainer');
+//         const reportsContainer =
+//             document.getElementById('adminReportsContainer');
 
-        if (reportsContainer) {
+//         if (reportsContainer) {
 
-            if (!Array.isArray(reports) || reports.length === 0) {
+//             if (!Array.isArray(reports) || reports.length === 0) {
 
-                reportsContainer.innerHTML = `
-                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
-                        <div class="text-3xl mb-2">📭</div>
+//                 reportsContainer.innerHTML = `
+//                     <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
+//                         <div class="text-3xl mb-2">📭</div>
 
-                        <p class="text-sm font-semibold text-slate-200">
-                            No reports found
-                        </p>
+//                         <p class="text-sm font-semibold text-slate-200">
+//                             No reports found
+//                         </p>
 
-                        <p class="text-xs text-slate-400 mt-1">
-                            Submitted user reports will appear here.
-                        </p>
-                    </div>
-                `;
+//                         <p class="text-xs text-slate-400 mt-1">
+//                             Submitted user reports will appear here.
+//                         </p>
+//                     </div>
+//                 `;
 
-            } else {
+//             } else {
 
-                reportsContainer.innerHTML = reports.map(report => {
+//                 reportsContainer.innerHTML = reports.map(report => {
 
-                    const reportedUser =
-                        userMap.get(Number(report.report_for));
+//                     const reportedUser =
+//                         userMap.get(Number(report.report_for));
 
-                    const reporter =
-                        userMap.get(Number(report.report_by));
+//                     const reporter =
+//                         userMap.get(Number(report.report_by));
 
-                    return `
-                        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
+//                     return `
+//                         <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
 
-                            <div class="flex flex-col lg:flex-row lg:justify-between gap-4">
+//                             <div class="flex flex-col lg:flex-row lg:justify-between gap-4">
 
-                                <div class="space-y-1.5 text-xs text-slate-300">
+//                                 <div class="space-y-1.5 text-xs text-slate-300">
 
-                                    <p>
-                                        <strong class="text-white">
-                                            Report #${Number(report.id)}
-                                        </strong>
-                                    </p>
+//                                     <p>
+//                                         <strong class="text-white">
+//                                             Report #${Number(report.id)}
+//                                         </strong>
+//                                     </p>
 
-                                    <p>
-                                        <strong>Reported User:</strong>
-                                        ${escapeHtml(
-                                            reportedUser?.name ||
-                                            `User #${report.report_for}`
-                                        )}
-                                    </p>
+//                                     <p>
+//                                         <strong>Reported User:</strong>
+//                                         ${escapeHtml(
+//                                             reportedUser?.name ||
+//                                             `User #${report.report_for}`
+//                                         )}
+//                                     </p>
 
-                                    <p>
-                                        <strong>Email:</strong>
-                                        ${escapeHtml(
-                                            reportedUser?.email ||
-                                            'Unknown'
-                                        )}
-                                    </p>
+//                                     <p>
+//                                         <strong>Email:</strong>
+//                                         ${escapeHtml(
+//                                             reportedUser?.email ||
+//                                             'Unknown'
+//                                         )}
+//                                     </p>
 
-                                    <p>
-                                        <strong>Reported By:</strong>
-                                        ${escapeHtml(
-                                            reporter?.name ||
-                                            `User #${report.report_by}`
-                                        )}
-                                    </p>
+//                                     <p>
+//                                         <strong>Reported By:</strong>
+//                                         ${escapeHtml(
+//                                             reporter?.name ||
+//                                             `User #${report.report_by}`
+//                                         )}
+//                                     </p>
 
-                                    <p>
-                                        <strong>Description:</strong>
-                                        ${escapeHtml(
-                                            report.report_description ||
-                                            'No description'
-                                        )}
-                                    </p>
+//                                     <p>
+//                                         <strong>Description:</strong>
+//                                         ${escapeHtml(
+//                                             report.report_description ||
+//                                             'No description'
+//                                         )}
+//                                     </p>
 
-                                    <p class="text-slate-500">
-                                        <strong>Reported At:</strong>
-                                        ${
-                                            report.report_at
-                                                ? new Date(
-                                                    report.report_at
-                                                ).toLocaleString()
-                                                : 'Unknown'
-                                        }
-                                    </p>
+//                                     <p class="text-slate-500">
+//                                         <strong>Reported At:</strong>
+//                                         ${
+//                                             report.report_at
+//                                                 ? new Date(
+//                                                     report.report_at
+//                                                 ).toLocaleString()
+//                                                 : 'Unknown'
+//                                         }
+//                                     </p>
 
-                                </div>
+//                                 </div>
 
-                                <div class="flex items-start gap-2">
+//                                 <div class="flex items-start gap-2">
 
-                                    <button
-                                        type="button"
-                                        onclick="viewReportProof(${Number(report.id)})"
-                                        class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
-                                        👁 View Proof
-                                    </button>
+//                                     <button
+//                                         type="button"
+//                                         onclick="viewReportProof(${Number(report.id)})"
+//                                         class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+//                                         👁 View Proof
+//                                     </button>
 
-                                </div>
+//                                 </div>
 
-                            </div>
+//                             </div>
 
-                        </div>
-                    `;
+//                         </div>
+//                     `;
 
-                }).join('');
-            }
-        }
+//                 }).join('');
+//             }
+//         }
 
-        // ==========================================
-        // USER STATUS
-        // ==========================================
+//         // ==========================================
+//         // USER STATUS
+//         // ==========================================
 
-        const usersContainer =
-            document.getElementById('adminUsersContainer');
+//         const usersContainer =
+//             document.getElementById('adminUsersContainer');
 
-        if (usersContainer) {
+//         if (usersContainer) {
 
-            if (!users.length) {
+//             if (!users.length) {
 
-                usersContainer.innerHTML = `
-                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
-                        <p class="text-sm text-slate-300">
-                            No users found.
-                        </p>
-                    </div>
-                `;
+//                 usersContainer.innerHTML = `
+//                     <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 text-center">
+//                         <p class="text-sm text-slate-300">
+//                             No users found.
+//                         </p>
+//                     </div>
+//                 `;
 
-            } else {
+//             } else {
 
-                usersContainer.innerHTML = users.map(user => {
+//                 usersContainer.innerHTML = users.map(user => {
 
-                    const isBlocked =
-                        Boolean(user.is_blockbyAdmin);
+//                     const isBlocked =
+//                         Boolean(user.is_blockbyAdmin);
 
-                    const isCurrentAdmin =
-                        Number(user.id) === Number(currentUserId);
+//                     const isCurrentAdmin =
+//                         Number(user.id) === Number(currentUserId);
 
-                    return `
-                        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
+//                     return `
+//                         <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 mb-3">
 
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+//                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-                                <div>
+//                                 <div>
 
-                                    <div class="flex items-center gap-2">
+//                                     <div class="flex items-center gap-2">
 
-                                        <h3 class="font-bold text-slate-100 text-sm">
-                                            ${escapeHtml(user.name || 'Unknown User')}
-                                        </h3>
+//                                         <h3 class="font-bold text-slate-100 text-sm">
+//                                             ${escapeHtml(user.name || 'Unknown User')}
+//                                         </h3>
 
-                                        ${
-                                            isBlocked
-                                                ? `
-                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                                                        DEACTIVATED
-                                                    </span>
-                                                `
-                                                : `
-                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                                        ACTIVE
-                                                    </span>
-                                                `
-                                        }
+//                                         ${
+//                                             isBlocked
+//                                                 ? `
+//                                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+//                                                         DEACTIVATED
+//                                                     </span>
+//                                                 `
+//                                                 : `
+//                                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+//                                                         ACTIVE
+//                                                     </span>
+//                                                 `
+//                                         }
 
-                                    </div>
+//                                     </div>
 
-                                    <p class="text-xs text-slate-400 mt-1">
-                                        ${escapeHtml(user.email || '')}
-                                    </p>
+//                                     <p class="text-xs text-slate-400 mt-1">
+//                                         ${escapeHtml(user.email || '')}
+//                                     </p>
 
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        User ID: ${Number(user.id)}
-                                    </p>
+//                                     <p class="text-xs text-slate-500 mt-1">
+//                                         User ID: ${Number(user.id)}
+//                                     </p>
 
-                                </div>
+//                                 </div>
 
-                                <div class="flex gap-2">
+//                                 <div class="flex gap-2">
 
-                                    ${
-                                        isCurrentAdmin
-                                            ? `
-                                                <button
-                                                    disabled
-                                                    class="px-3 py-2 rounded-lg bg-slate-800 text-slate-500 text-xs font-bold cursor-not-allowed">
-                                                    Current Admin
-                                                </button>
-                                            `
-                                            : isBlocked
-                                                ? `
-                                                    <button
-                                                        type="button"
-                                                        onclick="toggleUserStatus(
-                                                            ${Number(user.id)},
-                                                            'activate',
-                                                            '${escapeHtml(user.email || '')}'
-                                                        )"
-                                                        class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
-                                                        ✓ Activate
-                                                    </button>
-                                                `
-                                                : `
-                                                    <button
-                                                        type="button"
-                                                        onclick="toggleUserStatus(
-                                                            ${Number(user.id)},
-                                                            'deactivate',
-                                                            '${escapeHtml(user.email || '')}'
-                                                        )"
-                                                        class="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">
-                                                        🚫 Deactivate
-                                                    </button>
-                                                `
-                                    }
+//                                     ${
+//                                         isCurrentAdmin
+//                                             ? `
+//                                                 <button
+//                                                     disabled
+//                                                     class="px-3 py-2 rounded-lg bg-slate-800 text-slate-500 text-xs font-bold cursor-not-allowed">
+//                                                     Current Admin
+//                                                 </button>
+//                                             `
+//                                             : isBlocked
+//                                                 ? `
+//                                                     <button
+//                                                         type="button"
+//                                                         onclick="toggleUserStatus(
+//                                                             ${Number(user.id)},
+//                                                             'activate',
+//                                                             '${escapeHtml(user.email || '')}'
+//                                                         )"
+//                                                         class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
+//                                                         ✓ Activate
+//                                                     </button>
+//                                                 `
+//                                                 : `
+//                                                     <button
+//                                                         type="button"
+//                                                         onclick="toggleUserStatus(
+//                                                             ${Number(user.id)},
+//                                                             'deactivate',
+//                                                             '${escapeHtml(user.email || '')}'
+//                                                         )"
+//                                                         class="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">
+//                                                         🚫 Deactivate
+//                                                     </button>
+//                                                 `
+//                                     }
 
-                                </div>
+//                                 </div>
 
-                            </div>
+//                             </div>
 
-                        </div>
-                    `;
+//                         </div>
+//                     `;
 
-                }).join('');
-            }
-        }
+//                 }).join('');
+//             }
+//         }
 
-    } catch (error) {
+//     } catch (error) {
 
-        console.error(
-            'Failed to load admin reports/users:',
-            error
-        );
+//         console.error(
+//             'Failed to load admin reports/users:',
+//             error
+//         );
 
-        showToast(
-            error.message || 'Failed to load admin reports',
-            'error'
-        );
-    }
-}
+//         showToast(
+//             error.message || 'Failed to load admin reports',
+//             'error'
+//         );
+//     }
+// }
 
 
 async function viewReportProof(reportId) {
@@ -4369,4 +4369,153 @@ async function loadAndRenderAdminReports() {
 function viewReportDetails(reportId) {
     showToast(`Opening details for Report #${reportId}`, 'info');
     // Add your custom report detail viewing logic or navigation here
+}
+
+
+
+async function loadAdminReportsAndUsers() {
+    try {
+        // 1. Load All Users for Admin Dashboard Directory
+        const users = await request('/api/v1/admin/all_users', 'GET');
+        const usersGrid = document.getElementById('users-grid');
+        
+        if (usersGrid) {
+            if (!Array.isArray(users) || users.length === 0) {
+                usersGrid.innerHTML = '<p class="text-slate-400 text-xs">No users found.</p>';
+            } else {
+                usersGrid.innerHTML = users.map(u => `
+                    <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
+                        <h3 class="font-bold text-slate-100 text-sm">${escapeHtml(u.name)}</h3>
+                        <p class="text-xs text-slate-400 mt-1"><strong>Email:</strong> ${escapeHtml(u.email)}</p>
+                        <p class="text-xs text-slate-400"><strong>Role:</strong> ${escapeHtml(u.role)}</p>
+                        <p class="text-xs mt-2 font-semibold ${u.is_blocked_by_admin ? 'text-rose-400' : 'text-emerald-400'}">
+                            Status: ${u.is_blocked_by_admin ? 'Blocked by Admin' : 'Active'}
+                        </p>
+                        ${u.is_blocked_by_admin ? `
+                            <button class="mt-3 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1 px-3 rounded-lg" onclick="unblockUser('${escapeHtml(u.email)}')">Unblock User</button>
+                        ` : ''}
+                    </div>
+                `).join('');
+            }
+        }
+
+        // 2. Load All Reports for Admin Review Section
+        const reports = await request('/api/v1/admin/all_report', 'GET');
+        let reportsContainer = document.getElementById('admin-reports-container');
+        
+        if (!reportsContainer) {
+            // Create reports container dynamically if it doesn't exist in HTML
+            const adminSection = document.getElementById('admin-summary-section');
+            if (adminSection) {
+                const reportWrapper = document.createElement('div');
+                reportWrapper.className = 'mt-6';
+                reportWrapper.innerHTML = `
+                    <h3 class="font-bold text-sm text-slate-200 mb-3">User Reports Requiring Review</h3>
+                    <div id="admin-reports-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                `;
+                adminSection.appendChild(reportWrapper);
+                reportsContainer = document.getElementById('admin-reports-container');
+            }
+        }
+
+        if (reportsContainer) {
+            if (!Array.isArray(reports) || reports.length === 0) {
+                reportsContainer.innerHTML = '<p class="text-slate-400 text-xs col-span-full">No active reports submitted.</p>';
+            } else {
+                reportsContainer.innerHTML = reports.map(r => `
+                    <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">Report ID: ${r.id}</span>
+                            <p class="text-xs text-slate-300 mt-2"><strong>Reported User ID:</strong> ${r.report_for}</p>
+                            <p class="text-xs text-slate-300 mt-1"><strong>Reported By:</strong> ${r.report_by}</p>
+                            <p class="text-xs text-slate-400 mt-2 italic bg-slate-950/50 p-2 rounded border border-slate-800">"${escapeHtml(r.report_description)}"</p>
+                        </div>
+                        <div class="mt-4 flex gap-2">
+                            <button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-1.5 px-3 rounded-lg font-bold" onclick="openReportPopup(${r.id})">
+                                🔍 Review & Screenshot
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load admin reports and users:", e);
+    }
+}
+
+async function openReportPopup(reportId) {
+    try {
+        const report = await request(`/api/v1/admin/report/${reportId}`, 'GET');
+        
+        let modal = document.getElementById('admin-report-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-report-modal';
+            modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4';
+            document.body.appendChild(modal);
+        }
+
+        const screenshotUrl = report.report_ss_url ? `${BASE_URL}/api/v1/admin/report_screenshot/${reportId}` : null;
+
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative text-slate-200">
+                <button class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold" onclick="closeReportPopup()">✕</button>
+                <h3 class="font-bold text-base text-white mb-2">Review Report #${report.id}</h3>
+                <p class="text-xs text-slate-400 mb-4">Target User ID: <span class="text-indigo-400 font-bold">${report.report_for}</span></p>
+                
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs mb-4">
+                    <p class="font-semibold text-slate-300 mb-1">Description:</p>
+                    <p class="text-slate-400">${escapeHtml(report.report_description)}</p>
+                </div>
+
+                <div class="mb-5">
+                    <p class="font-semibold text-xs text-slate-300 mb-2">Attached Screenshot:</p>
+                    ${screenshotUrl ? `
+                        <div class="bg-black/50 border border-slate-800 rounded-xl overflow-hidden max-h-60 flex items-center justify-center">
+                            <img src="${screenshotUrl}" alt="Report Evidence" class="object-contain max-h-56 w-full" onerror="this.onerror=null;this.parentElement.innerHTML='<p class=\'text-xs text-slate-500 py-6 text-center\'>Screenshot unavailable or failed to load.</p>';">
+                        </div>
+                    ` : '<p class="text-xs text-slate-500 italic">No screenshot provided with this report.</p>'}
+                </div>
+
+                <div class="flex gap-3 pt-2 border-t border-slate-800">
+                    <button class="flex-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2.5 rounded-xl transition-all" onclick="submitAdminAction(${report.id}, 'yes')">
+                        🔨 Block User
+                    </button>
+                    <button class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2.5 rounded-xl transition-all" onclick="submitAdminAction(${report.id}, 'no')">
+                        ❌ Reject Report
+                    </button>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+    } catch (e) {
+        showToast("Failed to fetch report details.", "error");
+    }
+}
+
+function closeReportPopup() {
+    const modal = document.getElementById('admin-report-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitAdminAction(reportId, action) {
+    try {
+        const res = await request(`/api/v1/admin/take_action/${reportId}?acticon=${action}`, 'POST');
+        showToast(res.message || "Action processed successfully!", "success");
+        closeReportPopup();
+        loadAdminReportsAndUsers();
+    } catch (e) {
+        showToast(e.message || "Failed to process action.", "error");
+    }
+}
+
+async function unblockUser(email) {
+    try {
+        const res = await request(`/api/v1/admin/unblock/${encodeURIComponent(email)}`, 'POST');
+        showToast(res.message || "User unblocked successfully!", "success");
+        loadAdminReportsAndUsers();
+    } catch (e) {
+        showToast("Failed to unblock user.", "error");
+    }
 }

@@ -15,8 +15,6 @@ class FriendRequest(Base):
         default=re_status.NOT_SENT,
         nullable=False
     )
-    is_blocked = Column(Boolean, default=False, nullable=False)
-    who_block = Column(Integer, nullable=True)
     send_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sender = relationship("User", foreign_keys=[sender_id])

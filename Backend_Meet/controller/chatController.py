@@ -10,6 +10,7 @@ from fastapi import (
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
+from dataBase_Model.blockUser_model import UserBlock
 from dataBase_Model.friend_request import FriendRequest
 from dataBase_Model.user_model import User
 from enums.Request_Status import re_status
@@ -76,6 +77,7 @@ async def websocket_endpoint(
         manager.disconnect(user_id)
 
 
+
 @router.post("/chat/send")
 async def send_private(
     payload: SendMessage,
@@ -83,7 +85,8 @@ async def send_private(
     current_user: User = Depends(require_roles(Role.USER)),
 ):
     try:
-       friendship = db.query(FriendRequest).filter(
+        # 1. Check if friendship exists
+        friendship = db.query(FriendRequest).filter(
             or_(
                 and_(FriendRequest.sender_id == current_user.id, FriendRequest.receiver_id == payload.receiver_id),
                 and_(FriendRequest.sender_id == payload.receiver_id, FriendRequest.receiver_id == current_user.id)
@@ -91,39 +94,51 @@ async def send_private(
             FriendRequest.request_status == re_status.ACCEPT 
         ).first()
         
-       if not friendship:
+        if not friendship:
             raise HTTPException(
                 status_code=404,
                 detail="You must be friends with this user to send messages."
             )
         
-       
-       if friendship.is_blocked and friendship.who_block == current_user.id:
+        # 2. Check if the current user has blocked the receiver
+        blocked_them = db.query(UserBlock).filter_by(
+            blocker_id=current_user.id, 
+            blocked_id=payload.receiver_id
+        ).first()
+        
+        if blocked_them:
             raise HTTPException(
                 status_code=400,
                 detail="You have blocked this user."
             )
-       
-       if friendship.is_blocked and friendship.who_block == payload.recipient_id:
+        
+        # 3. Check if the receiver has blocked the current user
+        blocked_me = db.query(UserBlock).filter_by(
+            blocker_id=payload.receiver_id, 
+            blocked_id=current_user.id
+        ).first()
+        
+        if blocked_me:
             raise HTTPException(
                 status_code=400,
                 detail="You have been blocked by this user."
             )
-       await manager.send_private_message(
+
+        # 4. Send the message via WebSocket/manager
+        await manager.send_private_message(
             sender_id=current_user.id,
             recipient_id=payload.receiver_id,
             message=payload.message,
             db=db,
         )
-       return {"status": "success", "message": "Message sent successfully"}
+        return {"status": "success", "message": "Message sent successfully"}
+        
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
-
-
 @router.get("/history")
 async def get_chat_history(
     id: int,

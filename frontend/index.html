@@ -269,16 +269,14 @@
 
             <!-- ADMIN VIEW: System & User Usage Analytics -->
             <section id="admin-summary-section" class="section hidden space-y-5">
-
-
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-3">
                     <div>
                         <h2 class="font-bold text-xl text-slate-100">System Analytics & Token Usage</h2>
-                        <p class="text-xs text-slate-400 mt-1">Manage reports and user account status.</p>
+                        <p class="text-xs text-slate-400 mt-1">Manage reports, moderation queues, and user account status.</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button type="button" onclick="toggleAdminReports()" class="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 text-xs font-bold">
-                            ⚠️ Reports
+                        <button type="button" onclick="loadAdminReportsAndUsers()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+                            🔄 Refresh Reports & Directory
                         </button>
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
                             Admin Portal
@@ -286,29 +284,19 @@
                     </div>
                 </div>
 
-                <div id="adminReportsSection" class="hidden mt-4 p-4 bg-slate-950/40 border border-slate-800 rounded-2xl">
-                    <div class="flex items-center justify-between gap-3 mb-3">
-                        <div>
-                            <h2 class="text-lg font-bold text-slate-100">User Reports</h2>
-                            <p class="text-xs text-slate-400 mt-1">Review submitted reports and proof before deactivating an account.</p>
-                        </div>
-                        <button type="button" onclick="toggleAdminReports()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
-                            Close
-                        </button>
+                <!-- Admin Pending Reports Section -->
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="font-bold text-sm text-slate-200 mb-3">Pending User Reports</h3>
+                    <div id="admin-reports-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <p class="text-xs text-slate-500 italic col-span-full">Loading reports queue...</p>
                     </div>
-                    <div id="adminReportsContainer"></div>
-                    <h2 class="text-lg font-bold text-slate-100 mt-6 mb-3">Manage Users Status</h2>
-                    <div id="adminUsersContainer"></div>
                 </div>
 
-                <div id="proofModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-                    <div class="bg-slate-900 border border-slate-700 p-5 rounded-2xl max-w-2xl w-full shadow-2xl">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-lg font-bold text-slate-100">Report Proof</h3>
-                            <button type="button" onclick="document.getElementById('proofModal').classList.add('hidden')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
-                        </div>
-                        <img id="proofImage" src="" alt="Report proof screenshot" class="w-full max-h-[70vh] object-contain rounded-xl border border-slate-800 bg-slate-950">
-                        <p id="proofEmptyMessage" class="hidden text-center text-sm text-slate-400 py-12">No screenshot was attached to this report.</p>
+                <!-- Admin User Directory Section -->
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="font-bold text-sm text-slate-200 mb-3">Registered Users Management</h3>
+                    <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <p class="text-xs text-slate-500 italic">Loading users...</p>
                     </div>
                 </div>
 
@@ -452,7 +440,7 @@
                             📹</div>
                         <h3 class="font-bold text-base text-slate-200">Instant Video Meeting</h3>
                         <p class="text-slate-400 text-xs mt-1">Select any colleague from the user directory below to initiate a private meeting session.</p>
-                        <button onclick="document.getElementById('users-grid').scrollIntoView({behavior: 'smooth'})" class="w-full mt-4 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm">Find Teammate</button>
+                        <button onclick="document.getElementById('org-users-grid').scrollIntoView({behavior: 'smooth'})" class="w-full mt-4 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm">Find Teammate</button>
                     </div>
 
                     <div class="item-card feature-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md hover:border-indigo-500/50 transition-all group interactive-card flex flex-col justify-between">
@@ -511,30 +499,23 @@
                 </div>
             </section>
 
-            <!-- TOKEN SUBSCRIPTION PLANS (ENTERPRISE LEVEL • MOST POPULAR AUTO-SELECTED) -->
+            <!-- TOKEN SUBSCRIPTION PLANS -->
             <section class="section space-y-4">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-800 pb-3">
                     <div>
                         <div class="flex items-center gap-2.5">
                             <h2 class="font-bold text-xl text-slate-100">Enterprise Token Top-Up Plans</h2>
                             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Instant Refill</span>
-                            <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active Auto-Selection</span>
                         </div>
                         <p class="text-xs text-slate-400 mt-1">High-speed compute tokens for HD WebRTC meetings, LiveKit real-time audio, and Gemini multimodal document intelligence.</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-indigo-300 bg-indigo-500/10 px-3.5 py-1 rounded-full border border-indigo-500/20 font-medium">🛡️ Enterprise SLA • No Expiration</span>
                     </div>
                 </div>
 
                 <div id="plans-grid">
-                    <!-- Tier 1: Starter Pack -->
                     <div class="enterprise-plan-card" data-plan-id="1" onclick="selectPlanCard(1, event)">
                         <div>
                             <div class="plan-radio-row">
-                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/90 px-2.5 py-0.5 rounded-full border border-slate-700">
-                                    Starter Tier
-                                </span>
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/90 px-2.5 py-0.5 rounded-full border border-slate-700">Starter Tier</span>
                                 <span class="plan-radio-pill">
                                     <span class="plan-radio-dot"></span>
                                     <span class="radio-label">Select Plan</span>
@@ -549,52 +530,13 @@
                                     <span class="text-xs text-slate-400 font-normal">/ package</span>
                                 </div>
                                 <div class="plan-token-pill">
-                                    <span>🪙</span> 100 AI Compute Tokens <span class="text-[11px] opacity-75 font-normal">(₹1.99 / token)</span>
+                                    <span>🪙</span> 100 AI Compute Tokens
                                 </div>
                             </div>
-
-                            <ul class="plan-features-list">
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Standard audio transcription & live captions</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Single document upload & RAG analysis</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Zero expiration on top-up token balances</span>
-                                </li>
-                                <li>
-                                    <span class="plan-check-icon">✓</span>
-                                    <span>Pay-as-you-go top-up anytime</span>
-                                </li>
-                            </ul>
                         </div>
                         <button class="enterprise-buy-btn mt-4" onclick="subscribePlan(1); event.stopPropagation();">
                             Select Starter Tier
                         </button>
-                    </div>
-                </div>
-
-                <!-- Enterprise Trust & Guarantee Banner -->
-                <div class="plans-trust-strip">
-                    <div class="plans-trust-item">
-                        <span class="trust-icon">🔒</span>
-                        <span>256-Bit SSL Encrypted Checkout</span>
-                    </div>
-                    <div class="plans-trust-item">
-                        <span class="trust-icon">⚡</span>
-                        <span>Instant Wallet Token Crediting</span>
-                    </div>
-                    <div class="plans-trust-item">
-                        <span class="trust-icon">♾️</span>
-                        <span>Tokens Never Expire or Reset</span>
-                    </div>
-                    <div class="plans-trust-item">
-                        <span class="trust-icon">🏢</span>
-                        <span>Enterprise GST & Tax Invoicing</span>
                     </div>
                 </div>
             </section>
@@ -602,7 +544,7 @@
             <!-- USER DIRECTORY -->
             <section class="section space-y-3">
                 <h2 class="font-bold text-xl text-slate-100">Organization Directory</h2>
-                <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                <div id="org-users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
 
             <!-- FRIENDS AND CALL HISTORY -->
@@ -610,39 +552,12 @@
                 <h2 class="font-bold text-xl text-slate-100">Pinned Contacts & Teammates</h2>
                 <div id="friends-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
-
-            <section id="admin-calls-section" class="section hidden space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div>
-                        <h2
-                            class="font-bold text-xl text-slate-100">
-                            Video Meeting History
-                        </h2>
-                        <p class="text-slate-400 text-xs mt-0.5">
-                            Comprehensive record of user sessions
-                        </p>
-                    </div>
-
-                    <span
-                        class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        Admin
-                    </span>
-                </div>
-
-                <div id="admin-calls-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <p class="empty-msg text-slate-400 text-xs">
-                        Loading meeting records...
-                    </p>
-                </div>
-            </section>
-
         </div>
     </div>
 
     <!-- WHATSAPP / TEAMS CHAT DRAWER MODAL -->
     <div id="chat-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
         <div class="w-full max-w-md bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl">
-            <!-- Chat Header -->
             <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs" id="chat-header-avatar">💬</div>
@@ -651,22 +566,11 @@
                         <span id="chat-header-status" class="text-[11px] text-emerald-400">Available</span>
                     </div>
                 </div>
-                <div class="relative">
-                    <button type="button" onclick="document.getElementById('chatMenuDropdown').classList.toggle('hidden')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-lg leading-none">⋮</button>
-                    <div id="chatMenuDropdown" class="hidden absolute right-0 mt-2 bg-slate-900 border border-slate-700 shadow-2xl rounded-xl py-1 w-32 z-20 overflow-hidden">
-                        <button type="button" onclick="blockUser(activeChatPartnerId)" class="w-full text-left px-4 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/10">🚫 Block</button>
-                        <button type="button" onclick="unblockUser(activeChatPartnerId)" class="w-full text-left px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10">✓ Unblock</button>
-                    </div>
-                </div>
                 <button onclick="closeChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
             </div>
-
-            <!-- Messages History Box -->
             <div id="chat-messages-box" class="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar bg-slate-950/40">
                 <p class="empty-msg text-center text-slate-500 text-xs my-auto">Loading messages...</p>
             </div>
-
-            <!-- Chat Input Form -->
             <form id="chat-input-form" onsubmit="handleSendChatMessage(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
                 <input type="text" id="chat-message-input" placeholder="Type a message..." autocomplete="off"
                     class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
@@ -675,202 +579,80 @@
         </div>
     </div>
 
-
-    <!-- Admin Reports Modal Popup -->
-<div id="admin-reports-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-    <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        
-        <!-- Modal Header -->
-        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-            <div>
-                <h3 class="font-bold text-slate-100 text-base">📊 System Admin Reports</h3>
-                <p class="text-xs text-slate-400">Review analytics, usage telemetry, and activity logs</p>
+    <!-- STRIPE IN-APP PAYMENT MODAL -->
+    <div id="payment-modal" class="payment-modal hidden">
+        <div class="payment-box">
+            <button type="button" id="close-payment" class="payment-close" onclick="paymentclose()">×</button>
+            <div class="payment-title">
+                <div class="payment-icon">💳</div>
+                <div>
+                    <h2>Complete Payment</h2>
+                    <p>Secure payment powered by Stripe</p>
+                </div>
             </div>
-            <button onclick="closeAdminReportsModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1">&times;</button>
-        </div>
-
-        <!-- Modal Body / Reports List -->
-        <div id="admin-reports-list" class="p-6 overflow-y-auto space-y-3 flex-1">
-            <!-- Dynamically populated reports will appear here -->
-        </div>
-
-        <!-- Modal Footer -->
-        <div class="px-6 py-4 border-t border-slate-800 bg-slate-950/50 flex justify-end">
-            <button onclick="closeAdminReportsModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-all">
-                Close
-            </button>
+            <div class="payment-summary">
+                <div class="payment-summary-item">
+                    <span>Plan</span>
+                    <strong id="payment-plan-name">Premium</strong>
+                </div>
+                <div class="payment-summary-item">
+                    <span>Tokens</span>
+                    <strong id="payment-token-count">0 Tokens</strong>
+                </div>
+                <div class="payment-summary-item">
+                    <span>Amount</span>
+                    <strong id="payment-plan-price">₹0</strong>
+                </div>
+            </div>
+            <div class="payment-email-wrapper">
+                <label for="payment-email">Email</label>
+                <input type="email" id="payment-email" readonly>
+            </div>
+            <form id="payment-form">
+                <div id="payment-element" class="stripe-payment-element"></div>
+                <div id="payment-error" class="payment-error"></div>
+                <button type="submit" id="pay-button" class="payment-submit">Pay Now</button>
+            </form>
+            <div id="payment-success" class="payment-success hidden">
+                <div class="payment-success-icon">✓</div>
+                <h3>Payment Successful</h3>
+                <p>Tokens have been added to your wallet.</p>
+            </div>
         </div>
     </div>
-</div>
 
-    <!-- STRIPE IN-APP PAYMENT MODAL POPUP -->
-
-<!-- =====================================================
-     STRIPE IN-APP PAYMENT MODAL
-===================================================== -->
-
-<div
-    id="payment-modal"
-    class="payment-modal hidden"
->
-
-    <div class="payment-box">
-
-        <button
-            type="button"
-            id="close-payment"
-            class="payment-close"
-            onclick="paymentclose()"
-        >
-            ×
-        </button>
-
-        <div class="payment-title">
-            <div class="payment-icon">
-                💳
+    <!-- USER REPORT MODAL -->
+    <div id="reportModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100">Report User</h3>
+                    <p class="text-xs text-slate-400 mt-1">Provide a description and screenshot proof.</p>
+                </div>
+                <button type="button" onclick="closeReportPopup()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
             </div>
-
-            <div>
-                <h2>Complete Payment</h2>
-                <p>Secure payment powered by Stripe</p>
-            </div>
+            <form id="report-user-form" onsubmit="submitUserReport(event)" class="space-y-4">
+                <input type="hidden" id="reportedUserIdInput">
+                <div>
+                    <label for="reportDescriptionInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Description <span class="text-rose-400">*</span></label>
+                    <textarea id="reportDescriptionInput" placeholder="Explain what happened..." rows="5" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                </div>
+                <div>
+                    <label for="reportScreenshotInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Screenshot Proof <span class="text-rose-400">*</span></label>
+                    <input type="file" id="reportScreenshotInput" class="w-full mb-4 text-sm text-slate-400" accept="image/*" required>
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="closeReportPopup()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Send Report</button>
+                </div>
+            </form>
         </div>
-
-
-        <!-- PLAN SUMMARY -->
-
-        <div class="payment-summary">
-
-            <div class="payment-summary-item">
-                <span>Plan</span>
-                <strong id="payment-plan-name">
-                    Premium
-                </strong>
-            </div>
-
-            <div class="payment-summary-item">
-                <span>Tokens</span>
-                <strong id="payment-token-count">
-                    0 Tokens
-                </strong>
-            </div>
-
-            <div class="payment-summary-item">
-                <span>Amount</span>
-                <strong id="payment-plan-price">
-                    ₹0
-                </strong>
-            </div>
-
-        </div>
-
-
-        <!-- EMAIL -->
-
-        <div class="payment-email-wrapper">
-
-            <label for="payment-email">
-                Email
-            </label>
-
-            <input
-                type="email"
-                id="payment-email"
-                readonly
-            >
-
-        </div>
-
-
-        <!-- STRIPE PAYMENT FORM -->
-
-        <form id="payment-form">
-
-            <div
-                id="payment-element"
-                class="stripe-payment-element"
-            ></div>
-
-
-            <div
-                id="payment-error"
-                class="payment-error"
-            ></div>
-
-
-            <button
-                type="submit"
-                id="pay-button"
-                class="payment-submit"
-            >
-                Pay Now
-            </button>
-
-        </form>
-
-
-        <!-- SUCCESS -->
-
-        <div
-            id="payment-success"
-            class="payment-success hidden"
-        >
-
-            <div class="payment-success-icon">
-                ✓
-            </div>
-
-            <h3>
-                Payment Successful
-            </h3>
-
-            <p>
-                Tokens have been added to your wallet.
-            </p>
-
-        </div>
-
     </div>
 
-</div>
+    <!-- GLOBAL TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[99999] flex flex-col gap-2"></div>
 
-<div id="reportModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-bold text-slate-100">Report User</h3>
-                <p class="text-xs text-slate-400 mt-1">Provide a description and screenshot proof.</p>
-            </div>
-            <button type="button" onclick="closeReportPopup()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
-        </div>
-        <form id="report-user-form" onsubmit="submitUserReport(event)" class="space-y-4">
-            <input type="hidden" id="reportedUserIdInput">
-            <div>
-                <label for="reportDescriptionInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Description <span class="text-rose-400">*</span></label>
-                <textarea id="reportDescriptionInput" placeholder="Explain what happened..." rows="5" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
-            </div>
-            <div>
-                <label for="reportScreenshotInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Screenshot Proof <span class="text-rose-400">*</span></label>
-                <input
-    type="file"
-    id="reportScreenshotInput"
-    class="w-full mb-4 text-sm"
-    accept="image/*"
-    required>
-                <p class="text-[11px] text-slate-500 mt-1">Attach the screenshot showing the inappropriate or abusive message.</p>
-            </div>
-            <div class="flex justify-end gap-2 pt-1">
-                <button type="button" onclick="closeReportPopup()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Cancel</button>
-                <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Send Report</button>
-            </div>
-        </form>
-    </div>
-    
-</div>
-</div>
-
-
-    <!-- Script integration matching app.js -->
+    <!-- Script Integration -->
     <script src="/app.js"></script>
 </body>
 

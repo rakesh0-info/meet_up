@@ -23,6 +23,7 @@ from enums.plan_status import status as PlanStatus
 
 from enums.call_status import CallStatus
 from dataBase_Model.reportModel import Reports
+from fastapi.responses import FileResponse
 
 
 
@@ -126,6 +127,11 @@ async def admin_dashboard(
         )
 
 
+
+
+
+
+
 @router.post("/add_new_plan", status_code=status.HTTP_201_CREATED)
 async def add_new_plan(
     payload: SubscriptionPlanCreate,
@@ -212,6 +218,29 @@ async def add_new_plan(
 
 
 
+@router.get("/all_users")
+async def get_all_users(db: Session = Depends(get_db), current_user: User = Depends(require_roles(roleEnum.Role.ADMIN))):
+    try:
+        users = db.query(User).all()
+
+        users_data = []
+        for user in users:
+            users_data.append({
+                "id": user.id,
+                "name": getattr(user, "name", "N/A"),
+                "email": user.email,
+                "role": getattr(user, "role", None),
+                "is_blocked_by_admin": getattr(user, "is_blockbyAdmin", False)
+            })
+        return users_data
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users: {str(e)}"
+        )
+
+
+
 @router.get("/all_report")
 async def get_all_report(db: Session = Depends(get_db),
     cur: User = Depends(require_roles(roleEnum.Role.ADMIN))):
@@ -235,23 +264,47 @@ async def viewReport(
     return existing_report
     
 
-@router.post("/take_action/{id}")
+
+
+@router.get("/report_screenshot/{report_id}")
+async def viewScreenShot(
+    report_id: int, 
+    db: Session = Depends(get_db),
+    cur: User = Depends(require_roles(roleEnum.Role.ADMIN))
+):
+    report = db.query(Reports).filter(Reports.id == report_id).first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    if not report.report_ss_url:
+        raise HTTPException(status_code=404, detail="No screenshot available for this report")
+
+    screenshot_path = Path(report.report_ss_url)
+
+    if not screenshot_path.exists():
+        raise HTTPException(status_code=404, detail="Screenshot file not found on server")
+
+    # Fixed: Stream file correctly using FileResponse
+    return FileResponse(screenshot_path)
+
+
+
+@router.post("/take_action/{report_id}")
 async def takeAction(
-    id: int,  # MATCHED path parameter name
+    report_id: int,  
     acticon: str,
     db: Session = Depends(get_db),
     curr: User = Depends(require_roles(roleEnum.Role.ADMIN)),
 ):
-    # 'id' represents the user being reported (about_whom_id)
-    exist = db.query(User).filter(User.id == id).first()
+    # Fixed: Query report by report_id first to prevent column attribute errors
+    report = db.query(Reports).filter(Reports.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
 
+    exist = db.query(User).filter(User.id == report.report_for).first()
     if not exist:
         raise HTTPException(status_code=404, detail="User not found")
-
-    report = db.query(Reports).filter(Reports.report_for == exist.id,exist.is_blockbyAdmin==False).first()
-
-    if not report:
-        raise HTTPException(status_code=404, detail="Report for this user not found")
 
     action_clean = acticon.strip().lower()
 
@@ -260,12 +313,10 @@ async def takeAction(
         db.commit()
         db.refresh(exist)  
         
-        # Fixed: Removed trailing comma, used exist.name, fixed variable name
         notification_msg = f"Admin blocked {exist.name} successfully."
         notification_type = "ADMIN_NOTIFICATION"
         
     elif action_clean in ["no", "reject"]:
-        # Fixed: Removed trailing comma, fixed variable spelling (otification_type -> notification_type)
         notification_msg = "Sorry, this report has been reviewed and deemed inappropriate."
         notification_type = "ADMIN_NOTIFICATION"
         
@@ -275,16 +326,17 @@ async def takeAction(
             detail="Invalid status value. Use 'yes' or 'no'."
         )
 
-    # Notify the user who submitted the report (report.report_by)
     create_notification(
         db=db,
-        user_id=report.report_by,  # Send to the reporter
-        sender_id=curr.id,         # Sent by current admin
+        user_id=report.report_by,  
+        sender_id=curr.id,         
         message=notification_msg,
         notification_type=notification_type
     )
 
     return {"status": "success", "message": "Action processed successfully"}
+
+
 
 
 @router.post("/unblock/{email}")
