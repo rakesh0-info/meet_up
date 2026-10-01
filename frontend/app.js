@@ -2312,39 +2312,42 @@ function initChatWebSocket() {
                 const data = JSON.parse(event.data);
                 const msgType = (data.type || data.event || '').toUpperCase();
 
-                if (msgType === "USER_TYPING" || msgType === "USER_STOPPED_TYPING" || data.event === "USER_TYPING" || data.event === "USER_STOPPED_TYPING") {
-                    const senderId = Number(data.sender_id);
+                // 1. Handle Typing Indicators
+                if (msgType === "USER_TYPING" || msgType === "USER_STOPPED_TYPING") {
+                    const senderId = Number(data.sender_id || data.user_id);
                     if (Number(activeChatPartnerId) === senderId) {
-                        showChatTypingIndicator(msgType === "USER_TYPING" || data.event === "USER_TYPING");
+                        showChatTypingIndicator(msgType === "USER_TYPING");
                     }
                     return;
                 }
 
-                if (msgType === "PRIVATE_MESSAGE" || msgType === "NEW_PRIVATE_MESSAGE" || data.sender_id || data.chat) {
-                    const chatData = data.chat || data;
-                    const senderId = Number(chatData.sender_id);
-                    const messageText = chatData.message;
-                    const sentAt = chatData.sent_at || new Date().toISOString();
+                // 2. Handle Incoming Private Messages
+                // Check multiple possible backend payload keys (data, data.chat, data.message)
+                const payload = data.chat || data.message || data;
+                const senderId = Number(payload.sender_id || data.sender_id);
+                const receiverId = Number(payload.receiver_id || data.receiver_id);
+                const messageText = payload.message || payload.text;
 
-                    if (activeChatPartnerId === senderId) {
+                if (senderId && messageText) {
+                    // If the message belongs to the person currently open in your active chat box
+                    if (Number(activeChatPartnerId) === senderId) {
                         appendChatMessage({
                             sender_id: senderId,
-                            receiver_id: currentUserId,
+                            receiver_id: receiverId || currentUserId,
                             message: messageText,
-                            sent_at: sentAt,
+                            sent_at: payload.sent_at || data.sent_at || new Date().toISOString(),
                             is_read: true
                         });
+                        // Automatically tell backend it's seen since chat is open
                         markConversationAsSeen(senderId);
-                    } else {
+                    } else if (senderId !== Number(currentUserId)) {
+                        // Increment unread badge if message is from someone else
                         unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
                         updateFriendBadgesUI();
                     }
-
-                    if (data.notification) {
-                        addRealtimeNotification(data.notification);
-                    }
                 }
 
+                // 3. Handle Read Receipts
                 if (msgType === "MESSAGE_SEEN" || data.reader_id) {
                     const targetSender = data.sender_id || currentUserId;
                     document.querySelectorAll(`.message-item[data-sender="${targetSender}"] .read-receipt`)
@@ -2353,14 +2356,19 @@ function initChatWebSocket() {
                             el.classList.add("text-indigo-400");
                         });
                 }
+
+                if (data.notification) {
+                    addRealtimeNotification(data.notification);
+                }
             } catch (err) {
-                console.warn("Chat WebSocket message warning:", err);
+                console.warn("Chat WebSocket message parsing error:", err);
             }
         };
 
         chatWs.onerror = (err) => console.warn("Chat WebSocket error:", err);
         chatWs.onclose = () => {
-            setTimeout(initChatWebSocket, 5000);
+            // Reconnect after 3 seconds if dropped
+            setTimeout(initChatWebSocket, 3000);
         };
     } catch (err) {
         console.warn("Chat WS init exception:", err);
