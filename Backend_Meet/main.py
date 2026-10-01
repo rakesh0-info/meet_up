@@ -4,11 +4,12 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.asyncio import AsyncIOScheduler  # Added import
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi.staticfiles import StaticFiles  # Added import
 
 from database import engine, SessionLocal, Base
 from controller.adminController import router as admin_router
-from controller.publicController import router as public_router
+from controller.publicController import UPLOAD_DIR1, router as public_router
 from controller.call_controller import router as call_router
 from controller.chatController import router as chat_router
 from controller.notificationController import (
@@ -75,6 +76,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows GET, POST, PUT, DELETE, OPTIONS, etc.
     allow_headers=["*"],  # Allows all headers (Authorization, Content-Type, etc.)
 )
+app.mount("/reports", StaticFiles(directory=UPLOAD_DIR1), name="reports")
 
 app.include_router(admin_router)
 app.include_router(public_router)

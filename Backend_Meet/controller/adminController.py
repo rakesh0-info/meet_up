@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, HTTPException, Depends, UploadFile, status,
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
+from controller.publicController import UPLOAD_DIR1
 from service.notification_service import create_notification
 from requestmodel.subcription import SubscriptionPlanCreate
 
@@ -59,7 +60,7 @@ async def admin_dashboard(
             ).all()
             
             total_allocated = sum(getattr(sub, "token_amount", 0) for sub in subs) if subs else 0
-            current_balance = user.token_balance
+            current_balance = user.token_balance    
             tokens_used = max(0, total_allocated - current_balance)
             
             user_data.append({
@@ -267,26 +268,22 @@ async def viewReport(
 
 
 @router.get("/report_screenshot/{report_id}")
-async def viewScreenShot(
-    report_id: int, 
+async def get_report_screenshot(
+    report_id: int,
     db: Session = Depends(get_db),
-    cur: User = Depends(require_roles(roleEnum.Role.ADMIN))
+    curr: User = Depends(require_roles(roleEnum.Role.ADMIN))
 ):
     report = db.query(Reports).filter(Reports.id == report_id).first()
-
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-
-    if not report.report_ss_url:
-        raise HTTPException(status_code=404, detail="No screenshot available for this report")
-
-    screenshot_path = Path(report.report_ss_url)
-
-    if not screenshot_path.exists():
-        raise HTTPException(status_code=404, detail="Screenshot file not found on server")
-
-    # Fixed: Stream file correctly using FileResponse
-    return FileResponse(screenshot_path)
+    if not report or not report.report_ss_url:
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    
+    # Reconstruct the full path using your UPLOAD_DIR1 and the stored filename
+    file_path = os.path.join(UPLOAD_DIR1, report.report_ss_url)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File does not exist on disk")
+        
+    return FileResponse(file_path)
 
 
 

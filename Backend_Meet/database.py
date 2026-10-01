@@ -11,8 +11,10 @@ if not DATABASE_URL:
 
 engine_options = {}
 if DATABASE_URL.startswith(("postgresql://", "postgresql+")):
-      engine_options["connect_args"] = {"options": '-csearch_path="Meet_up"'}  
-    #    engine_options["connect_args"] = {"options": '-c search_path=Meet_up,public'}  -> for render
+    #   engine_options["connect_args"] = {"options": '-csearch_path="Meet_up"'}  
+    
+    # -> for render
+        engine_options["connect_args"] = {"options": '-c search_path=Meet_up,public'}  
 
 engine = create_engine(DATABASE_URL, **engine_options)
 

@@ -20,6 +20,7 @@ from fastapi import (
     BackgroundTasks,
     Cookie,
     Depends,
+    Form,
     HTTPException,
     Query,
     Request,
@@ -1353,25 +1354,21 @@ async def unblock_user(
 
 
 
-
-
 @router.post("/report")
 async def report_to_admin(
-    reported_user_id: int,
-    report_des: str,
+    reported_user_id: int = Form(...),
+    report_des: str = Form(...),
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
     curr: User = Depends(require_roles(Role.USER))
 ):
     try:
-        
         if curr.id == reported_user_id:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="You cannot report yourself."
             )
 
-       
         target_user = db.query(User).filter(User.id == reported_user_id).first()
         if not target_user:
             raise HTTPException(
@@ -1379,39 +1376,49 @@ async def report_to_admin(
                 detail="The user you are trying to report does not exist."
             )
 
-      
         file_path = None
-        if file:
-            file_extension = file.filename.split(".")[-1]
+        unique_filename = None
+
+        if file and file.filename:
+            # Ensure upload directory exists
+            os.makedirs(UPLOAD_DIR1, exist_ok=True)
+            
+            ext_parts = file.filename.split(".")
+            file_extension = ext_parts[-1] if len(ext_parts) > 1 else "bin"
             unique_filename = f"report_{curr.id}_{reported_user_id}_{os.urandom(4).hex()}.{file_extension}"
             file_path = os.path.join(UPLOAD_DIR1, unique_filename)
             
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-        
+        # 1. Create report record (Store just the unique filename, NOT the absolute path)
         new_report = Reports(
-            report_ss_url=file_path,
+            report_ss_url=unique_filename,  # <--- Store just the filename here
             report_by=curr.id,
             report_description=report_des,
             report_for=reported_user_id,
-            report_at= datetime.utcnow()
+            report_at=datetime.now()  # <--- Fixed timezone reference
         )
         db.add(new_report)
-        db.commit()
-        db.refresh(new_report) 
 
-      
+        
+
+        # 2. Fetch admin dynamically (fallback to ID 1 if not found)
+        admin_user = db.query(User).filter(User.role == Role.ADMIN).first()
+        admin_id = admin_user.id if admin_user else 1
+
+        # 3. Create notification record
         new_report_notification = Notification(
-            user_id=1, 
+            user_id=admin_id, 
             sender_id=curr.id,
             message=f"User {curr.name} reported {target_user.name}.",
             notification_type="ADMIN_REPORT",
         )
-
         db.add(new_report_notification)
+
+        # 4. Single atomic commit for both records
         db.commit()
-        db.refresh(new_report_notification)
+        db.refresh(new_report)
 
         return {
             "status": "success",
@@ -1420,6 +1427,7 @@ async def report_to_admin(
         }
 
     except HTTPException as e:
+        db.rollback()
         raise e
     except Exception as e:
         db.rollback()
@@ -1427,4 +1435,3 @@ async def report_to_admin(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-    

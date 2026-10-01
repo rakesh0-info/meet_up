@@ -542,10 +542,9 @@ async function loadDashboard() {
     }
 
     if (!authenticated) {
-        if (!currentEmail) currentEmail = "alex.morgan@enterprise.ai";
-        if (!currentUserId) currentUserId = 1;
-        if (!currentUserRole) currentUserRole = "user";
-        updateWalletDisplay(140);
+        showToast('Session expired or invalid. Please log in again.', 'error');
+        // document.getElementById('login-form').classList.add('hidden');
+        switchAuthTab('login');
     }
 
     const greeting = document.getElementById('greeting-text');
@@ -621,7 +620,7 @@ async function loadAdminDashboard() {
                 `;
             }
 
-            const usersGrid = document.getElementById('users-grid');
+            const usersGrid = document.getElementById('org-users-grid');
             if (usersGrid) {
                 const otherUsers = (adminData.users || []).filter(u => u.email !== currentEmail);
                 usersGrid.innerHTML = otherUsers.map(u => `
@@ -776,7 +775,7 @@ async function loadUserDashboard() {
             renderFriends(friends || []);
             renderCompletedCalls(dashboard.completed_calls || []);
 
-            const usersGrid = document.getElementById('users-grid');
+            const usersGrid = document.getElementById('org-users-grid');
             const availableUsers = dashboard.available_users || [];
 
             if (usersGrid) {
@@ -888,7 +887,7 @@ function renderFriends(friends) {
 
     <button
         class="text-xs py-1.5 px-3 rounded-lg font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30"
-        onclick="openReportPopup(${friend.id})">
+        onclick="openUserReportPopup(${friend.id})">
         ⚠️ Report
     </button>
 </div>
@@ -3759,22 +3758,22 @@ function closePaymentModal() {
 }
 
 
-// function openReportPopup(reportedUserId) {
-//     const modal = document.getElementById('reportModal');
-//     if (modal) {
-//         document.getElementById('reportedUserIdInput').value = reportedUserId;
-//         modal.classList.remove('hidden');
-//     }
-// }
+function openUserReportPopup(reportedUserId) {
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        document.getElementById('reportedUserIdInput').value = reportedUserId;
+        modal.classList.remove('hidden');
+    }
+}
 
-// function closeReportPopup() {
-//     const modal = document.getElementById('reportModal');
-//     if (modal) {
-//         modal.classList.add('hidden');
-//         document.getElementById('reportDescriptionInput').value = '';
-//         document.getElementById('reportScreenshotInput').value = '';
-//     }
-// }
+function closeUserReportPopup() {
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('reportDescriptionInput').value = '';
+        document.getElementById('reportScreenshotInput').value = '';
+    }
+}
 
 async function submitUserReport(event) {
     event.preventDefault();
@@ -3782,25 +3781,31 @@ async function submitUserReport(event) {
     const description = document.getElementById('reportDescriptionInput').value;
     const fileInput = document.getElementById('reportScreenshotInput').files[0];
 
+    // Append all fields to FormData so FastAPI Form(...) can read them from the body
     const formData = new FormData();
+    formData.append('reported_user_id', reportedUserId);
     formData.append('report_des', description);
     if (fileInput) {
         formData.append('file', fileInput);
     }
 
     try {
-        const response = await fetch(`${BASE_URL}/api/v1/user/report?reported_user_id=${reportedUserId}&report_des=${encodeURIComponent(description)}`, {
+        // Remove query parameters from the URL
+        const response = await fetch(`${BASE_URL}/api/v1/user/report`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`
+                // Note: Do NOT manually set 'Content-Type': 'multipart/form-data' 
+                // when using FormData; fetch handles the boundary automatically.
             },
             body: formData
         });
+        
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'Failed to submit report');
         
         showToast('Report submitted successfully to administration.', 'success');
-        closeReportPopup();
+        closeUserReportPopup();
     } catch (error) {
         showToast(error.message, 'error');
     }
@@ -4377,13 +4382,13 @@ async function loadAdminReportsAndUsers() {
     try {
         // 1. Load All Users for Admin Dashboard Directory
         const users = await request('/api/v1/admin/all_users', 'GET');
-        const usersGrid = document.getElementById('users-grid');
+        const userssGrid = document.getElementById('users-grid');
         
-        if (usersGrid) {
+        if (userssGrid) {
             if (!Array.isArray(users) || users.length === 0) {
-                usersGrid.innerHTML = '<p class="text-slate-400 text-xs">No users found.</p>';
+                userssGrid.innerHTML = '<p class="text-slate-400 text-xs">No users found.</p>';
             } else {
-                usersGrid.innerHTML = users.map(u => `
+                userssGrid.innerHTML = users.map(u => `
                     <div class="item-card bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
                         <h3 class="font-bold text-slate-100 text-sm">${escapeHtml(u.name)}</h3>
                         <p class="text-xs text-slate-400 mt-1"><strong>Email:</strong> ${escapeHtml(u.email)}</p>
@@ -4456,7 +4461,7 @@ async function openReportPopup(reportId) {
             document.body.appendChild(modal);
         }
 
-        const screenshotUrl = report.report_ss_url ? `${BASE_URL}/api/v1/admin/report_screenshot/${reportId}` : null;
+       const screenshotUrl = report.report_ss_url ? `${BASE_URL}/reports/${report.report_ss_url}` : null;
 
         modal.innerHTML = `
             <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative text-slate-200">
