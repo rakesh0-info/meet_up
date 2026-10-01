@@ -10,6 +10,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
+from dataBase_Model.blockUser_model import UserBlock
 from dataBase_Model.friend_request import FriendRequest
 from database import get_db
 from dataBase_Model.video_call import VideoCall
@@ -147,11 +148,29 @@ async def send_call_request(
         )
 
     # Check if either user has blocked the other
-    if friendship.is_blocked:
-        if friendship.who_block == current_user.id:
-            raise HTTPException(status_code=400, detail="You have blocked this user.")
-        else:
-            raise HTTPException(status_code=400, detail="You have been blocked by this user.")
+    blocked_them = db.query(UserBlock).filter_by(
+               blocker_id=current_user.id, 
+               blocked_id=payload.receiver_id
+           ).first()
+           
+    if blocked_them:
+               raise HTTPException(
+                   status_code=400,
+                   detail="You have blocked this user."
+               )
+           
+           # 3. Check if the receiver has blocked the current user
+    blocked_me = db.query(UserBlock).filter_by(
+               blocker_id=payload.receiver_id, 
+               blocked_id=current_user.id
+           ).first()
+           
+    if blocked_me:
+               raise HTTPException(
+                   status_code=400,
+                   detail="You have been blocked by this user."
+               )
+   
 
     room_id = f"room_{uuid.uuid4().hex[:12]}"
 
