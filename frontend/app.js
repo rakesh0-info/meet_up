@@ -973,7 +973,7 @@ async function fetchSubscriptions() {
                         ${isPopular ? `<span class="popular-badge">⭐ Most Popular</span>` : ''}
                         <div>
                             <div class="plan-radio-row">
-                                <span class="text-[11px] font-bold uppercase tracking-wider ${isPopular ? 'text-indigo-300 bg-indigo-500/25 border-indigo-500/40' : 'text-slate-400 bg-slate-800/90 border-slate-700'} px-2.5 py-0.5 rounded-full border">
+                                <span class="text-[11px] font-bold uppercase tracking-wider ${isPopular ? 'text-indigo-300 bg-indigo-500/25 border-indigo-500/40' : 'text-slate-400 bg-slate-800/90 border-slate-700'} px-2.5 py-0.5 rounded-full border border-slate-700">
                                     ${escapeHtml(p.name)}
                                 </span>
                                 <span class="plan-radio-pill">
@@ -2511,7 +2511,6 @@ async function handleSendChatMessage(event) {
     if (!message || !activeChatPartnerId) return;
 
     if (input) input.value = '';
-
     try {
         await request('/api/v1/chats/chat/send', 'POST', {
             receiver_id: activeChatPartnerId,
@@ -3634,7 +3633,6 @@ function showPaymentSuccess(
         balance
     );
 
-
     /*
      * Refresh dashboard data
      */
@@ -3836,41 +3834,39 @@ async function handleBlockFromChat() {
         return;
     }
 
-    const menu = document.getElementById("chatMenuDropdown");
-    if (menu) {
-        menu.classList.add("hidden");
+    document.getElementById('chatMenuDropdown')?.classList.add('hidden');
+
+    if (!confirm('Are you sure you want to block this user?')) return;
+
+    try {
+        const response = await unblockChatUser(activeChatPartnerId);
+        showToast(response.message || 'User unblocked successfully', 'success');
+    } catch (error) {
+        showToast(error.message || 'Failed to unblock user', 'error');
     }
-
-    const confirmed = confirm("Are you sure you want to block this user?");
-
-    if (!confirmed) {
-        return;
-    }
-
-    await blockUser(activeChatPartnerId);
 }
 
+async function unblockChatUser(userId) {
+    return request(`/api/v1/user/unblock_user/${userId}`, 'POST');
+}
 
 async function handleUnblockFromChat() {
     if (!activeChatPartnerId) {
-        showToast("No chat user selected", "error");
+        showToast('No chat user selected', 'error');
         return;
     }
 
-    const menu = document.getElementById("chatMenuDropdown");
-    if (menu) {
-        menu.classList.add("hidden");
+    document.getElementById('chatMenuDropdown')?.classList.add('hidden');
+
+    if (!confirm('Are you sure you want to unblock this user?')) return;
+
+    try {
+        const response = await unblockChatUser(activeChatPartnerId);
+        showToast(response.message || 'User unblocked successfully', 'success');
+    } catch (error) {
+        showToast(error.message || 'Failed to unblock user', 'error');
     }
-
-    const confirmed = confirm("Are you sure you want to unblock this user?");
-
-    if (!confirmed) {
-        return;
-    }
-
-    await unblockUser(activeChatPartnerId);
 }
-
 
 // async function loadAdminReportsAndUsers() {
 //     try {
@@ -3980,7 +3976,7 @@ async function handleUnblockFromChat() {
 
 //                                 </div>
 
-//                                 <div class="flex items-start gap-2">
+//                                 <div class="flex gap-2">
 
 //                                     <button
 //                                         type="button"
@@ -4436,7 +4432,7 @@ async function loadAdminReportsAndUsers() {
                             <p class="text-xs text-slate-400 mt-2 italic bg-slate-950/50 p-2 rounded border border-slate-800">"${escapeHtml(r.report_description)}"</p>
                         </div>
                         <div class="mt-4 flex gap-2">
-                            <button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-1.5 px-3 rounded-lg font-bold" onclick="openReportPopup(${r.id})">
+                            <button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg" onclick="openReportPopup(${r.id})">
                                 🔍 Review & Screenshot
                             </button>
                         </div>

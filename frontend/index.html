@@ -8,11 +8,11 @@
     <meta name="description" content="Enterprise Teams Hub with real-time video meetings, Gemini AI live transcription recaps, document intelligence, interactive workspaces, and team token analytics." />
     <meta property="og:title" content="AI Video Workbench & Teams Hub" />
     <meta property="og:description" content="Enterprise Teams Hub with real-time video meetings, Gemini AI live transcription recaps, document intelligence, interactive workspaces, and team token analytics." />
-    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <!-- Google Fonts: Plus Jakarta Sans & Segoe UI -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Segoe+UI:wght@400;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     <!-- Tailwind CSS for utility styling -->
@@ -25,14 +25,13 @@
                         teams: {
                             50: '#f5f6ff',
                             100: '#eceeff',
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                            700: '#4338ca',
+                            500: '#5b5fc7',
+                            600: '#4f52b2',
+                            700: '#43469a',
                         }
                     },
                     fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+                        sans: ['Plus Jakarta Sans', 'Segoe UI', 'system-ui', 'sans-serif'],
                     }
                 }
             }
@@ -40,12 +39,10 @@
     </script>
     <!-- LiveKit Client SDK -->
     <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
-    <!-- Stripe JavaScript SDK -->
-    <script src="https://js.stripe.com/v3/"></script>
 </head>
 
 <body
-    class="bg-slate-950 text-slate-100 min-h-screen selection:bg-indigo-500 selection:text-white overflow-x-hidden relative font-sans flex flex-col justify-between">
+    class="bg-slate-950 text-slate-100 min-h-screen selection:bg-indigo-500 selection:text-white overflow-x-hidden relative font-sans">
 
     <!-- Ambient Glow Lights -->
     <div class="ambient-glow-left"></div>
@@ -53,7 +50,7 @@
 
     <!-- Header Navigation (MS Teams Top App Bar Theme) -->
     <header id="app-header"
-        class="hidden flex justify-between items-center px-6 lg:px-12 py-3.5 bg-slate-900/80 backdrop-blur-2xl border-b border-slate-800/80 sticky top-0 z-50 shadow-2xl transition-all duration-300">
+        class="hidden flex justify-between items-center px-6 lg:px-12 py-3 bg-slate-900/80 backdrop-blur-2xl border-b border-slate-800/80 sticky top-0 z-50 shadow-2xl transition-all duration-300">
         <div class="user-greeting flex items-center gap-3">
             <div
                 class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center font-bold text-lg shadow-md text-white glow-active">
@@ -61,7 +58,7 @@
             </div>
             <div>
                 <span id="greeting-text"
-                    class="font-semibold text-sm lg:text-base tracking-tight text-slate-100">Welcome</span>
+                    class="font-semibold text-base tracking-tight text-slate-100">Welcome</span>
                 <span id="role-badge"
                     class="badge-role inline-block ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">USER</span>
             </div>
@@ -69,8 +66,8 @@
 
         <div class="header-right flex items-center gap-3">
             <!-- Wallet Widget -->
-            <div id="wallet-widget" onclick="document.getElementById('plans-grid')?.scrollIntoView({behavior: 'smooth'})"
-                class="wallet-badge flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shadow-inner transition-all hover:bg-amber-500/20 cursor-pointer">
+            <div id="wallet-widget"
+                class="wallet-badge flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shadow-inner transition-all hover:bg-amber-500/20">
                 <span>🪙</span> Wallet: <span id="wallet-token-count"
                     class="font-bold text-amber-300 ml-1">0</span> Tokens
             </div>
@@ -97,536 +94,630 @@
             </div>
 
             <button
-                class="btn-logout px-3.5 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all hover:bg-rose-500 hover:text-white cursor-pointer"
+                class="btn-logout px-3.5 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all hover:bg-rose-500 hover:text-white"
                 onclick="handleLogout()">Logout</button>
         </div>
     </header>
 
-    <main class="flex-1 flex flex-col justify-center">
-        <div class="container max-w-7xl mx-auto px-4 py-8 lg:py-10">
+    <div class="container max-w-7xl mx-auto px-4 py-8 lg:py-10">
 
-            <!-- 1. AUTHENTICATION (LOGIN / REGISTER) - Exact layout of Image 1.png -->
-            <div id="auth-screen"
-                class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-3xl p-8 lg:p-9 shadow-2xl relative overflow-hidden my-auto">
-                <div class="text-center mb-6">
-                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-bold text-2xl mx-auto shadow-lg text-white mb-3.5 glow-active">
-                        👥
-                    </div>
-                    <h1
-                        class="font-bold text-2xl tracking-tight text-white">
-                        AI Video Workbench</h1>
-                    <p class="text-slate-400 text-xs mt-1.5 leading-relaxed">Connect, collaborate and converse with enterprise AI intelligence</p>
+        <!-- 1. AUTHENTICATION (LOGIN / REGISTER) -->
+        <div id="auth-screen"
+            class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-bold text-2xl mx-auto shadow-lg text-white mb-3 glow-active">
+                    👥
                 </div>
-
-                <div class="tab-buttons flex bg-slate-950/85 p-1 rounded-xl border border-slate-800/90 mb-6">
-                    <button id="tab-login-btn"
-                        class="active flex-1 py-2 rounded-lg font-semibold text-xs transition-all text-white bg-indigo-600 shadow-sm cursor-pointer"
-                        onclick="switchAuthTab('login')">Login</button>
-                    <button id="tab-register-btn"
-                        class="flex-1 py-2 rounded-lg font-semibold text-xs transition-all text-slate-400 hover:text-slate-200 cursor-pointer"
-                        onclick="switchAuthTab('register')">Register</button>
-                </div>
-
-                <!-- Login Form -->
-                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
-                    <h2 class="hidden">Login</h2>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">EMAIL ADDRESS</label>
-                        <input type="email" id="login-email" placeholder="name@company.com" value="" required
-                            class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-all placeholder:text-slate-600">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">PASSWORD</label>
-                        <input type="password" id="login-password" placeholder="••••••••" value="" required
-                            class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-all placeholder:text-slate-600">
-                    </div>
-                    <button type="submit"
-                        class="w-full py-3.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 active:scale-[0.99] transition-all cursor-pointer mt-2">Sign
-                        In</button>
-                    <button type="button"
-                        class="link-button w-full text-center text-xs text-indigo-400 hover:text-indigo-300 font-medium pt-2 transition-colors cursor-pointer"
-                        onclick="showPasswordReset()">Forgot password?</button>
-                </form>
-
-                <!-- Registration Form -->
-                <form id="register-form" class="hidden space-y-4" onsubmit="handleRegister(event)">
-                    <h2 class="hidden">Register</h2>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">FULL NAME</label>
-                        <input type="text" id="reg-name" placeholder="Alex Morgan" required
-                            class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-600">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">EMAIL ADDRESS</label>
-                        <input type="email" id="reg-email" placeholder="name@company.com" required
-                            class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-600">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">PASSWORD</label>
-                        <input type="password" id="reg-password" placeholder="Create a secure password" required
-                            class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-600">
-                    </div>
-                    <button type="submit"
-                        class="w-full py-3.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 active:scale-[0.99] transition-all cursor-pointer mt-2">Create
-                        Account</button>
-                </form>
+                <h1
+                    class="font-bold text-2xl tracking-tight text-white">
+                    AI Video Workbench</h1>
+                <p class="text-slate-400 text-xs mt-1">Connect, collaborate and converse with enterprise AI intelligence</p>
             </div>
 
-            <!-- PASSWORD RESET STEPS -->
-            <div id="password-reset-email-screen"
-                class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-3xl p-8 shadow-2xl hidden space-y-5 my-auto">
-                <div>
-                    <h2 class="font-bold text-xl text-slate-100">Reset Password</h2>
-                    <p class="text-slate-400 text-xs mt-1">Enter your account email to receive your secure reset OTP.</p>
-                </div>
-                <form onsubmit="handleForgotPassword(event)" class="space-y-4">
-                    <input type="email" id="forgot-email" placeholder="Email Address" required
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
-                    <button type="submit"
-                        class="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Send
-                        Reset Details</button>
-                </form>
-                <button type="button" onclick="hidePasswordReset()"
-                    class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer">Back to
-                    login</button>
+            <div class="tab-buttons flex bg-slate-950/80 p-1 rounded-xl border border-slate-800 mb-6">
+                <button id="tab-login-btn"
+                    class="active flex-1 py-2 rounded-lg font-semibold text-xs transition-all text-white bg-indigo-600 shadow-sm"
+                    onclick="switchAuthTab('login')">Login</button>
+                <button id="tab-register-btn"
+                    class="flex-1 py-2 rounded-lg font-semibold text-xs transition-all text-slate-400 hover:text-slate-200"
+                    onclick="switchAuthTab('register')">Register</button>
             </div>
 
-            <div id="password-reset-otp-screen"
-                class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-3xl p-8 shadow-2xl hidden space-y-5 my-auto">
-                <div>
-                    <h2 class="font-bold text-xl text-slate-100">Verify Reset OTP</h2>
-                    <p class="otp-subtext text-slate-400 text-xs mt-1">Enter the OTP sent to <strong id="reset-otp-email"
-                            class="text-indigo-400"></strong>.</p>
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <h2 class="hidden">Login</h2>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
+                    <input type="email" id="login-email" placeholder="name@company.com" value="alex.morgan@enterprise.ai" required
+                        class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all">
                 </div>
-                <form onsubmit="handleResetOTP(event)" class="space-y-4">
-                    <input type="text" id="reset-otp-input" placeholder="6-Digit OTP" maxlength="6" required
-                        autocomplete="off"
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center tracking-widest text-base font-mono text-slate-200 focus:outline-none focus:border-indigo-500">
-                    <button type="submit"
-                        class="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Verify
-                        OTP</button>
-                </form>
-                <button type="button" onclick="hidePasswordReset()"
-                    class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer">Back to
-                    login</button>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" value="password123" required
+                        class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 rounded-lg font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 active:scale-[0.99] transition-all cursor-pointer">Sign
+                    In</button>
+                <button type="button"
+                    class="link-button w-full text-center text-xs text-indigo-400 hover:text-indigo-300 font-medium pt-1"
+                    onclick="showPasswordReset()">Forgot password?</button>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="register-form" class="hidden space-y-4" onsubmit="handleRegister(event)">
+                <h2 class="hidden">Register</h2>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
+                    <input type="text" id="reg-name" placeholder="Alex Morgan" required
+                        class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
+                    <input type="email" id="reg-email" placeholder="name@company.com" required
+                        class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                    <input type="password" id="reg-password" placeholder="Create a secure password" required
+                        class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition-all">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 rounded-lg font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 active:scale-[0.99] transition-all cursor-pointer">Create
+                    Account</button>
+            </form>
+        </div>
+
+        <!-- PASSWORD RESET STEPS -->
+        <div id="password-reset-email-screen"
+            class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-2xl p-8 shadow-2xl hidden space-y-5">
+            <div>
+                <h2 class="font-bold text-xl text-slate-100">Reset Password</h2>
+                <p class="text-slate-400 text-xs mt-1">Enter your account email to receive your secure reset OTP.</p>
+            </div>
+            <form onsubmit="handleForgotPassword(event)" class="space-y-4">
+                <input type="email" id="forgot-email" placeholder="Email Address" required
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
+                <button type="submit"
+                    class="w-full py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Send
+                    Reset Details</button>
+            </form>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
+        </div>
+
+        <div id="password-reset-otp-screen"
+            class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-2xl p-8 shadow-2xl hidden space-y-5">
+            <div>
+                <h2 class="font-bold text-xl text-slate-100">Verify Reset OTP</h2>
+                <p class="otp-subtext text-slate-400 text-xs mt-1">Enter the OTP sent to <strong id="reset-otp-email"
+                        class="text-indigo-400"></strong>.</p>
+            </div>
+            <form onsubmit="handleResetOTP(event)" class="space-y-4">
+                <input type="text" id="reset-otp-input" placeholder="6-Digit OTP" maxlength="6" required
+                    autocomplete="off"
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-center tracking-widest text-base font-mono text-slate-200 focus:outline-none focus:border-indigo-500">
+                <button type="submit"
+                    class="w-full py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Verify
+                    OTP</button>
+            </form>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
+        </div>
+
+        <div id="password-reset-form-screen"
+            class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-2xl p-8 shadow-2xl hidden space-y-5">
+            <div>
+                <h2 class="font-bold text-xl text-slate-100">Choose a New Password</h2>
+                <p class="text-slate-400 text-xs mt-1">Please provide your reset token and new secure password.</p>
+            </div>
+            <form onsubmit="handleResetPassword(event)" class="space-y-4">
+                <input type="text" id="reset-key" placeholder="Reset key" required
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
+                <input type="password" id="reset-new-password" placeholder="New password" required
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
+                <input type="password" id="reset-confirm-password" placeholder="Confirm new password" required
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
+                <button type="submit"
+                    class="w-full py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Reset
+                    Password</button>
+            </form>
+            <button type="button" onclick="hidePasswordReset()"
+                class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors">Back to
+                login</button>
+        </div>
+
+        <!-- 2. OTP VERIFICATION SCREEN -->
+        <div id="otp-screen"
+            class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-2xl p-8 shadow-2xl hidden space-y-5">
+            <div>
+                <h2 class="font-bold text-xl text-slate-100">Enter Verification OTP</h2>
+                <p class="otp-subtext text-slate-400 text-xs mt-1">OTP sent to: <strong id="otp-target-email"
+                        class="text-indigo-400"></strong></p>
+            </div>
+            <form onsubmit="handleVerifyOTP(event)" class="space-y-4">
+                <input type="text" id="otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off"
+                    class="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-center tracking-widest text-base font-mono text-slate-200 focus:outline-none focus:border-indigo-500">
+                <button type="submit"
+                    class="w-full py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Verify
+                    Account</button>
+            </form>
+        </div>
+
+        <!-- 3. MAIN DASHBOARD SCREEN (TEAMS HUB) -->
+        <div id="dashboard-screen" class="dashboard hidden space-y-8">
+
+            <!-- HERO WELCOME BANNER (TEAMS COLLABORATION STAGE) -->
+            <div class="relative bg-gradient-to-r from-indigo-950/60 via-slate-900/80 to-slate-900/90 border border-indigo-500/25 rounded-2xl p-6 lg:p-8 overflow-hidden shadow-xl backdrop-blur-xl">
+                <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <span class="text-[11px] font-bold uppercase tracking-widest text-indigo-300 bg-indigo-500/20 px-3 py-0.5 rounded-full border border-indigo-500/30">Enterprise Teams Hub</span>
+                        <h1 class="font-bold text-2xl lg:text-3xl text-white mt-2">Welcome back, <span id="hero-username" class="text-indigo-300">Collaborator</span>!</h1>
+                        <p class="text-slate-400 text-xs lg:text-sm mt-1 max-w-xl">Start instant high-definition video meetings with AI transcription, talk to your enterprise documents, or manage team tokens seamlessly.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="document.getElementById('video-call-section').scrollIntoView({behavior: 'smooth'})" class="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
+                            <span>🎥</span> Launch Meeting Station
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <div id="password-reset-form-screen"
-                class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-3xl p-8 shadow-2xl hidden space-y-5 my-auto">
-                <div>
-                    <h2 class="font-bold text-xl text-slate-100">Choose a New Password</h2>
-                    <p class="text-slate-400 text-xs mt-1">Please provide your reset token and new secure password.</p>
+            <!-- ADMIN VIEW: System & User Usage Analytics -->
+            <section id="admin-summary-section" class="section hidden space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h2
+                        class="font-bold text-xl text-slate-100">
+                        System Analytics & Token Usage</h2>
+                    <span
+                        class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">Admin
+                        Portal</span>
                 </div>
-                <form onsubmit="handleResetPassword(event)" class="space-y-4">
-                    <input type="text" id="reset-key" placeholder="Reset key" required
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
-                    <input type="password" id="reset-new-password" placeholder="New password" required
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
-                    <input type="password" id="reset-confirm-password" placeholder="Confirm new password" required
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
-                    <button type="submit"
-                        class="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Reset
-                        Password</button>
-                </form>
-                <button type="button" onclick="hidePasswordReset()"
-                    class="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer">Back to
-                    login</button>
-            </div>
-
-            <!-- 2. OTP VERIFICATION SCREEN -->
-            <div id="otp-screen"
-                class="card max-w-md mx-auto bg-slate-900/85 backdrop-blur-3xl border border-slate-800 rounded-3xl p-8 shadow-2xl hidden space-y-5 my-auto">
-                <div>
-                    <h2 class="font-bold text-xl text-slate-100">Enter Verification OTP</h2>
-                    <p class="otp-subtext text-slate-400 text-xs mt-1">OTP sent to: <strong id="otp-target-email"
-                            class="text-indigo-400"></strong></p>
+                <div id="admin-usage-card"
+                    class="summary-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md">
+                    <p class="text-slate-400 text-xs animate-pulse">Loading stats...</p>
                 </div>
-                <form onsubmit="handleVerifyOTP(event)" class="space-y-4">
-                    <input type="text" id="otp-input" placeholder="6-Digit OTP" maxlength="6" required autocomplete="off"
-                        class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center tracking-widest text-base font-mono text-slate-200 focus:outline-none focus:border-indigo-500">
-                    <button type="submit"
-                        class="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Verify
-                        Account</button>
-                </form>
-            </div>
-
-            <!-- 3. MAIN DASHBOARD SCREEN (TEAMS HUB) -->
-            <div id="dashboard-screen" class="dashboard hidden space-y-8">
-
-                <!-- HERO WELCOME BANNER (TEAMS COLLABORATION STAGE) -->
-                <div class="relative bg-gradient-to-r from-indigo-950/70 via-slate-900/85 to-slate-900/90 border border-indigo-500/30 rounded-2xl p-6 lg:p-8 overflow-hidden shadow-2xl backdrop-blur-2xl">
-                    <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                            <span class="text-[11px] font-bold uppercase tracking-widest text-indigo-300 bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-500/30">Enterprise Teams Hub</span>
-                            <h1 class="font-extrabold text-2xl lg:text-3xl text-white mt-2.5">Welcome back, <span id="hero-username" class="text-indigo-300">Collaborator</span>!</h1>
-                            <p class="text-slate-400 text-xs lg:text-sm mt-1.5 max-w-xl leading-relaxed">Start instant high-definition video meetings with AI transcription, talk to your enterprise documents, or manage team tokens seamlessly.</p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <button onclick="document.getElementById('video-call-section').scrollIntoView({behavior: 'smooth'})" class="px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/35 transition-all flex items-center gap-2 cursor-pointer">
-                                <span>🎥</span> Launch Meeting Station
-                            </button>
-                        </div>
-                    </div>
+                <div
+                    class="summary-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md space-y-3">
+                    <h3 class="font-bold text-sm text-slate-200">Add Subscription Plan</h3>
+                    <form onsubmit="handleAddPlan(event)" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input type="text" id="plan-name" placeholder="Plan name" required
+                            class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                        <input type="text" id="plan-description" placeholder="Description"
+                            class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                        <input type="number" id="plan-token-balance" placeholder="Token amount" min="1" required
+                            class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                        <input type="number" id="plan-amount" placeholder="Price (INR)" min="1" step="1" required
+                            class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                        <button type="submit"
+                            class="md:col-span-2 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-md">Add
+                            Plan</button>
+                    </form>
                 </div>
+            </section>
 
-                <!-- ADMIN VIEW: System & User Usage Analytics -->
-                <section id="admin-summary-section" class="section hidden space-y-5">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-3">
-                        <div>
-                            <h2 class="font-bold text-xl text-slate-100">System Analytics & Token Usage</h2>
-                            <p class="text-xs text-slate-400 mt-1">Manage reports, moderation queues, and user account status.</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" onclick="loadAdminReportsAndUsers()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
-                                🔄 Refresh Reports & Directory
-                            </button>
-                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                Admin Portal
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Admin Pending Reports Section -->
-                    <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h3 class="font-bold text-sm text-slate-200 mb-3">Pending User Reports</h3>
-                        <div id="admin-reports-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <p class="text-xs text-slate-500 italic col-span-full">Loading reports queue...</p>
-                        </div>
-                    </div>
-
-                    <!-- Admin User Directory Section -->
-                    <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h3 class="font-bold text-sm text-slate-200 mb-3">Registered Users Management</h3>
-                        <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <p class="text-xs text-slate-500 italic">Loading users...</p>
-                        </div>
-                    </div>
-
-                    <div id="admin-usage-card"
-                        class="summary-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md">
-                        <p class="text-slate-400 text-xs animate-pulse">Loading stats...</p>
-                    </div>
+            <!-- DASHBOARD VIDEO CALL AI SUMMARY CARD -->
+            <section id="dashboard-summary-card" class="section hidden">
+                <div
+                    class="summary-card dashboard-card bg-slate-900/90 backdrop-blur-3xl border border-indigo-500/30 p-5 rounded-2xl shadow-xl relative overflow-hidden">
                     <div
-                        class="summary-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md space-y-3">
-                        <h3 class="font-bold text-sm text-slate-200">Add Subscription Plan</h3>
-                        <form onsubmit="handleAddPlan(event)" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <input type="text" id="plan-name" placeholder="Plan name" required
-                                class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                            <input type="text" id="plan-description" placeholder="Description"
-                                class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                            <input type="number" id="plan-token-balance" placeholder="Token amount" min="1" required
-                                class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                            <input type="number" id="plan-amount" placeholder="Price (INR)" min="1" step="1" required
-                                class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                            <button type="submit"
-                                class="md:col-span-2 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-md cursor-pointer">Add
-                                Plan</button>
-                        </form>
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2 class="font-bold text-base text-indigo-300 flex items-center gap-2">🤖 Recent Call AI Summary</h2>
+                        <span
+                            class="badge-role bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full text-xs">Room:
+                            <span id="dashboard-summary-room">N/A</span></span>
+                        <button onclick="document.getElementById('dashboard-summary-card').classList.add('hidden')"
+                            class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded transition-colors">Dismiss</button>
                     </div>
-                    <section class="section space-y-3">
-                        <h2 class="font-bold text-xl text-slate-100">Call Directory</h2>
-                        <div id="admin-calls-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-                    </section>
-                </section>
+                    <p id="dashboard-summary-text" style="white-space: pre-line; color: #f8fafc; font-size: 0.875rem;"
+                        class="leading-relaxed bg-slate-950/50 p-3.5 rounded-xl border border-slate-800">
+                        Summary loading...
+                    </p>
+                </div>
+            </section>
 
-                <!-- DASHBOARD VIDEO CALL AI SUMMARY CARD -->
-                <section id="dashboard-summary-card" class="section hidden">
+            <!-- LIVE VIDEO CALL WORKBENCH SECTION (TEAMS STAGE LAYOUT) -->
+            <section id="video-call-section" class="section hidden">
+                <div
+                    class="card full-width bg-slate-900/90 backdrop-blur-3xl border border-slate-800 p-5 lg:p-6 rounded-2xl shadow-2xl space-y-5 max-w-none interactive-card">
                     <div
-                        class="summary-card dashboard-card bg-slate-900/90 backdrop-blur-3xl border border-indigo-500/30 p-5 rounded-2xl shadow-xl relative overflow-hidden">
+                        class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
+                        <div>
+                            <h2 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Video Meeting & AI Workbench
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Active Room: <span id="active-room-display"
+                                    class="font-mono text-indigo-300 font-semibold">None</span></p>
+                        </div>
+                        <button
+                            class="btn-danger px-4 py-2 rounded-lg font-semibold text-xs bg-rose-600 text-white hover:bg-rose-500 transition-all shadow-md flex items-center gap-1.5"
+                            onclick="endCallSession()">
+                            <span>🛑</span> Leave Meeting
+                        </button>
+                    </div>
+
+                    <div id="low-token-alert"
+                        class="alert-banner hidden bg-amber-500/15 border border-amber-500/35 text-amber-300 p-3 rounded-xl text-xs font-medium flex items-center gap-2.5 shadow-sm">
+                        <span class="text-base">⚠️</span> Low Token Warning: Wallet balance is 20 tokens or lower! Top up
+                        to maintain uninterrupted AI features.
+                    </div>
+
+                    <!-- Video Grid & Captions Overlay (Teams Grid Style) -->
+                    <div
+                        class="video-grid grid grid-cols-1 md:grid-cols-2 gap-3 relative bg-slate-950 rounded-xl overflow-hidden border border-slate-800 p-2 shadow-inner min-h-[300px]">
                         <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h2 class="font-bold text-base text-indigo-300 flex items-center gap-2">🤖 Recent Call AI Summary</h2>
+                            class="relative rounded-lg overflow-hidden bg-slate-900 border border-slate-800/80 group shadow-md flex items-center justify-center">
+                            <video id="localVideo" autoplay muted playsinline class="w-full h-64 object-cover"></video>
                             <span
-                                class="badge-role bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full text-xs">Room:
-                                <span id="dashboard-summary-room">N/A</span></span>
-                            <button onclick="document.getElementById('dashboard-summary-card').classList.add('hidden')"
-                                class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded transition-colors cursor-pointer">Dismiss</button>
+                                class="absolute top-2.5 left-2.5 bg-slate-900/85 backdrop-blur-md px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-indigo-300 border border-slate-700/50">You
+                                (Local)</span>
                         </div>
-                        <p id="dashboard-summary-text" style="white-space: pre-line; color: #f8fafc; font-size: 0.875rem;"
-                            class="leading-relaxed bg-slate-950/50 p-3.5 rounded-xl border border-slate-800">
-                            Summary loading...
+                        <div
+                            class="relative rounded-lg overflow-hidden bg-slate-900 border border-slate-800/80 group shadow-md flex items-center justify-center">
+                            <video id="remoteVideo" autoplay playsinline class="w-full h-64 object-cover"></video>
+                            <span
+                                class="absolute top-2.5 left-2.5 bg-slate-900/85 backdrop-blur-md px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-emerald-400 border border-slate-700/50">Remote
+                                Participant</span>
+                        </div>
+                        <div id="captionOverlay"
+                            class="caption-overlay hidden absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/90 backdrop-blur-xl border border-indigo-500/40 px-5 py-2.5 rounded-xl text-slate-100 text-xs text-center max-w-[85%] shadow-2xl">
+                            <span id="captionSpeaker" class="text-indigo-400 font-bold"></span>: <span
+                                id="captionText"></span>
+                        </div>
+                    </div>
+
+                    <!-- Speech Input Control -->
+                    <div class="speech-controls flex gap-2">
+                        <input type="text" id="speechInput" placeholder="Type or simulate speech input in meeting..."
+                            class="flex-1 bg-slate-950/80 border border-slate-800 rounded-lg px-3.5 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
+                        <button onclick="sendSpeechInput()"
+                            class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-md">Send
+                            Speech Chunk</button>
+                    </div>
+
+                    <!-- Dual Section: Live Transcript & Summary -->
+                    <div class="transcript-summary-grid grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                        <div class="space-y-2 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                            <h3 class="font-bold text-xs text-slate-200 flex items-center justify-between">
+                                <span>Real-Time Live Meeting Transcript</span>
+                                <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+                            </h3>
+                            <div id="transcriptBox"
+                                class="transcript-box h-44 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs flex flex-col gap-1.5 custom-scrollbar">
+                                <p class="empty-msg text-slate-500 italic text-center my-auto">Transcripts will render
+                                    live during the call...</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                            <h3 class="font-bold text-xs text-slate-200">AI Meeting Recap</h3>
+                            <button onclick="fetchSummary()"
+                                class="w-full py-2 rounded-lg font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition-all shadow-sm">Generate
+                                Intelligent Recap</button>
+                            <textarea id="summaryDisplay" readonly
+                                placeholder="Click button above to generate meeting recap..."
+                                class="w-full h-28 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 resize-none focus:outline-none custom-scrollbar"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- USER FEATURE PLACEHOLDERS -->
+            <section id="user-features-section" class="section space-y-3">
+                <h2 class="font-bold text-xl text-slate-100">Interactive Workspaces</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div
+                        class="item-card feature-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md hover:border-indigo-500/50 transition-all group interactive-card">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-3">
+                            📹</div>
+                        <h3 class="font-bold text-base text-slate-200">Instant Video Meeting</h3>
+                        <p class="text-slate-400 text-xs mt-1">Select any colleague from the user directory below to initiate a private meeting session.</p>
+                        <button onclick="document.getElementById('users-grid').scrollIntoView({behavior: 'smooth'})" class="w-full mt-4 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm">Find Teammate</button>
+                    </div>
+
+                    <div class="item-card feature-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md hover:border-indigo-500/50 transition-all group interactive-card flex flex-col justify-between">
+                        <div>
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-3">
+                                📄</div>
+                            <h3 class="font-bold text-base text-slate-200">Document AI & Files</h3>
+                            <p class="text-slate-400 text-xs mt-1">Upload and chat directly with specifications, PDFs, and team documentation.</p>
+                        </div>
+                        <button onclick="openDocChatModal()"
+                            class="w-full mt-3 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm">Open Document AI</button>
+                    </div>
+
+                    <!-- DOCUMENT AI CHAT DRAWER / MODAL (TEAMS CHAT PANE STYLE) -->
+                    <div id="doc-chat-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
+                        <div class="w-full max-w-lg bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl">
+                            <!-- Header -->
+                            <div class="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-sm">📄</div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-100 text-sm">Document Intelligence Chat</h3>
+                                        <span id="doc-chat-active-name" class="text-xs text-indigo-400">Select a file to query</span>
+                                    </div>
+                                </div>
+                                <button onclick="closeDocChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
+                            </div>
+
+                            <!-- Document Selector & Upload Bar -->
+                            <div class="p-3.5 bg-slate-950/60 border-b border-slate-800 space-y-2.5">
+                                <div class="flex gap-2">
+                                    <select id="doc-select-dropdown" onchange="onDocumentSelected(this.value)" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                                        <option value="">-- Select Previous Document --</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="modal-doc-upload-input" accept=".pdf,.docx,.txt,.py,.js"
+                                        class="flex-1 text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-500/20 file:text-indigo-300 hover:file:bg-indigo-500/30 cursor-pointer">
+                                    <button onclick="handleModalDocUpload()" class="px-3.5 py-1.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Upload</button>
+                                </div>
+                            </div>
+
+                            <!-- Messages Box -->
+                            <div id="doc-chat-messages-box" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-950/40">
+                                <p class="empty-msg text-center text-slate-500 text-xs my-auto">Select a document or upload a new one to ask questions.</p>
+                            </div>
+
+                            <!-- Input Form -->
+                            <form id="doc-chat-input-form" onsubmit="handleSendDocQuestion(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
+                                <input type="text" id="doc-question-input" placeholder="Ask a question about the document..." autocomplete="off" disabled
+                                    class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+                                <button type="submit" id="doc-send-btn" disabled class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all disabled:opacity-50">Ask</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TOKEN SUBSCRIPTION PLANS (ENTERPRISE LEVEL • MOST POPULAR AUTO-SELECTED) -->
+            <section class="section space-y-4">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-800 pb-3">
+                    <div>
+                        <div class="flex items-center gap-2.5">
+                            <h2 class="font-bold text-xl text-slate-100">Enterprise Token Top-Up Plans</h2>
+                            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Instant Refill</span>
+                            <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active Auto-Selection</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">High-speed compute tokens for HD WebRTC meetings, LiveKit real-time audio, and Gemini multimodal document intelligence.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-indigo-300 bg-indigo-500/10 px-3.5 py-1 rounded-full border border-indigo-500/20 font-medium">🛡️ Enterprise SLA • No Expiration</span>
+                    </div>
+                </div>
+
+                <div id="plans-grid">
+                    <!-- Tier 1: Starter Pack -->
+                    <div class="enterprise-plan-card" data-plan-id="1" onclick="selectPlanCard(1, event)">
+                        <div>
+                            <div class="plan-radio-row">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/90 px-2.5 py-0.5 rounded-full border border-slate-700">
+                                    Starter Tier
+                                </span>
+                                <span class="plan-radio-pill">
+                                    <span class="plan-radio-dot"></span>
+                                    <span class="radio-label">Select Plan</span>
+                                </span>
+                            </div>
+                            <h3 class="font-bold text-lg text-slate-100 mt-1">Starter Pack</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Individual sessions & fast document tests</p>
+
+                            <div class="my-4 pb-4 border-b border-slate-800/80">
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-3xl font-extrabold text-white">₹ 199</span>
+                                    <span class="text-xs text-slate-400 font-normal">/ package</span>
+                                </div>
+                                <div class="plan-token-pill">
+                                    <span>🪙</span> 100 AI Compute Tokens <span class="text-[11px] opacity-75 font-normal">(₹1.99 / token)</span>
+                                </div>
+                            </div>
+
+                            <ul class="plan-features-list">
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Standard audio transcription & live captions</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Single document upload & RAG analysis</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Zero expiration on top-up token balances</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Pay-as-you-go top-up anytime</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <button class="enterprise-buy-btn mt-4" onclick="subscribePlan(1); event.stopPropagation();">
+                            Select Starter Tier
+                        </button>
+                    </div>
+
+                    <!-- Tier 2: Pro Team Tier (MOST POPULAR - AUTO SELECTED) -->
+                    <div class="enterprise-plan-card most-popular selected" data-plan-id="2" data-is-default-popular="true" onclick="selectPlanCard(2, event)">
+                        <span class="popular-badge">⭐ Most Popular</span>
+                        <div>
+                            <div class="plan-radio-row">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/25 px-2.5 py-0.5 rounded-full border border-indigo-500/40">
+                                    Professional Tier
+                                </span>
+                                <span class="plan-radio-pill">
+                                    <span class="plan-radio-dot"></span>
+                                    <span class="radio-label">Auto-Selected</span>
+                                </span>
+                            </div>
+                            <h3 class="font-bold text-xl text-slate-100 mt-1 flex items-center gap-2">
+                                Pro Team Tier
+                            </h3>
+                            <p class="text-xs text-indigo-300/90 mt-0.5">Continuous team transcription & document intelligence</p>
+
+                            <div class="my-4 pb-4 border-b border-indigo-500/25">
+                                <div class="flex items-baseline gap-1.5">
+                                    <span class="text-3xl font-extrabold text-white">₹ 799</span>
+                                    <span class="text-xs text-slate-400 font-normal">/ package</span>
+                                    <span class="ml-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">Save 20%</span>
+                                </div>
+                                <div class="plan-token-pill">
+                                    <span>🪙</span> 500 AI Compute Tokens <span class="text-[11px] opacity-90 font-semibold">(Best Value • ₹1.60 / token)</span>
+                                </div>
+                            </div>
+
+                            <ul class="plan-features-list">
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Priority real-time WebRTC LiveKit audio & video stream</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Intelligent executive call recap & action item extraction</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Multi-document cross-analysis & citations (PDF, Docx, Code)</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Automatic low-token notification alerts (&lt;20 tokens)</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Priority queue for Gemini AI inference models</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <button class="enterprise-buy-btn popular-btn mt-4" onclick="subscribePlan(2); event.stopPropagation();">
+                            ⚡ Activate Selected Plan (Instant Refill) →
+                        </button>
+                    </div>
+
+                    <!-- Tier 3: Enterprise Unlimited -->
+                    <div class="enterprise-plan-card" data-plan-id="3" onclick="selectPlanCard(3, event)">
+                        <div>
+                            <div class="plan-radio-row">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/15 px-2.5 py-0.5 rounded-full border border-purple-500/30">
+                                    Enterprise Scale
+                                </span>
+                                <span class="plan-radio-pill">
+                                    <span class="plan-radio-dot"></span>
+                                    <span class="radio-label">Select Plan</span>
+                                </span>
+                            </div>
+                            <h3 class="font-bold text-lg text-slate-100 mt-1">Enterprise Scale</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Continuous team transcription with audio archiving</p>
+
+                            <div class="my-4 pb-4 border-b border-slate-800/80">
+                                <div class="flex items-baseline gap-1.5">
+                                    <span class="text-3xl font-extrabold text-white">₹ 2,999</span>
+                                    <span class="text-xs text-slate-400 font-normal">/ package</span>
+                                    <span class="ml-1.5 text-[10px] font-bold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-full border border-purple-500/30">Max Volume</span>
+                                </div>
+                                <div class="plan-token-pill">
+                                    <span>🪙</span> 2,500 AI Compute Tokens <span class="text-[11px] opacity-75 font-normal">(₹1.20 / token)</span>
+                                </div>
+                            </div>
+
+                            <ul class="plan-features-list">
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Unlimited concurrent video meeting rooms</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>High-volume batch document embeddings & neural search</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Comprehensive admin usage telemetry & audit logs</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Dedicated low-latency WebSocket routing</span>
+                                </li>
+                                <li>
+                                    <span class="plan-check-icon">✓</span>
+                                    <span>Custom organizational role-based access limits</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <button class="enterprise-buy-btn mt-4" onclick="subscribePlan(3); event.stopPropagation();">
+                            Select Enterprise Scale
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Enterprise Trust & Guarantee Banner -->
+                <div class="plans-trust-strip">
+                    <div class="plans-trust-item">
+                        <span class="trust-icon">🔒</span>
+                        <span>256-Bit SSL Encrypted Checkout</span>
+                    </div>
+                    <div class="plans-trust-item">
+                        <span class="trust-icon">⚡</span>
+                        <span>Instant Wallet Token Crediting</span>
+                    </div>
+                    <div class="plans-trust-item">
+                        <span class="trust-icon">♾️</span>
+                        <span>Tokens Never Expire or Reset</span>
+                    </div>
+                    <div class="plans-trust-item">
+                        <span class="trust-icon">🏢</span>
+                        <span>Enterprise GST & Tax Invoicing</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- USER DIRECTORY -->
+            <section class="section space-y-3">
+                <h2 class="font-bold text-xl text-slate-100">Organization Directory</h2>
+                <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- FRIENDS AND CALL HISTORY -->
+            <section id="friends-section" class="section space-y-3">
+                <h2 class="font-bold text-xl text-slate-100">Pinned Contacts & Teammates</h2>
+                <div id="friends-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <section id="admin-calls-section" class="section hidden space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                        <h2
+                            class="font-bold text-xl text-slate-100">
+                            Video Meeting History
+                        </h2>
+                        <p class="text-slate-400 text-xs mt-0.5">
+                            Comprehensive record of user sessions
                         </p>
                     </div>
-                </section>
 
-                <!-- LIVE VIDEO CALL WORKBENCH SECTION (TEAMS STAGE LAYOUT) -->
-                <section id="video-call-section" class="section hidden">
-                    <div
-                        class="card full-width bg-slate-900/90 backdrop-blur-3xl border border-slate-800 p-5 lg:p-6 rounded-2xl shadow-2xl space-y-5 max-w-none interactive-card">
-                        <div
-                            class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
-                            <div>
-                                <h2 class="font-bold text-lg text-slate-100 flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Live Video Meeting & AI Workbench
-                                </h2>
-                                <p class="text-xs text-slate-400 mt-0.5">Active Room: <span id="active-room-display"
-                                        class="font-mono text-indigo-300 font-semibold">None</span></p>
-                            </div>
-                            <button
-                                class="btn-danger px-4 py-2 rounded-lg font-semibold text-xs bg-rose-600 text-white hover:bg-rose-500 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-                                onclick="endCallSession()">
-                                <span>🛑</span> Leave Meeting
-                            </button>
-                        </div>
+                    <span
+                        class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        Admin
+                    </span>
+                </div>
 
-                        <div id="low-token-alert"
-                            class="alert-banner hidden bg-amber-500/15 border border-amber-500/35 text-amber-300 p-3 rounded-xl text-xs font-medium flex items-center gap-2.5 shadow-sm">
-                            <span class="text-base">⚠️</span> Low Token Warning: Wallet balance is 20 tokens or lower! Top up
-                            to maintain uninterrupted AI features.
-                        </div>
+                <div id="admin-calls-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <p class="empty-msg text-slate-400 text-xs">
+                        Loading meeting records...
+                    </p>
+                </div>
+            </section>
 
-                        <!-- Video Grid & Captions Overlay (Teams Grid Style) -->
-                        <div
-                            class="video-grid grid grid-cols-1 md:grid-cols-2 gap-3 relative bg-slate-950 rounded-xl overflow-hidden border border-slate-800 p-2 shadow-inner min-h-[300px]">
-                            <div
-                                class="relative rounded-lg overflow-hidden bg-slate-900 border border-slate-800/80 group shadow-md flex items-center justify-center">
-                                <video id="localVideo" autoplay muted playsinline class="w-full h-64 object-cover"></video>
-                                <span
-                                    class="absolute top-2.5 left-2.5 bg-slate-900/85 backdrop-blur-md px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-indigo-300 border border-slate-700/50">You
-                                    (Local)</span>
-                            </div>
-                            <div
-                                class="relative rounded-lg overflow-hidden bg-slate-900 border border-slate-800/80 group shadow-md flex items-center justify-center">
-                                <video id="remoteVideo" autoplay playsinline class="w-full h-64 object-cover"></video>
-                                <span
-                                    class="absolute top-2.5 left-2.5 bg-slate-900/85 backdrop-blur-md px-2.5 py-0.5 rounded-md text-[11px] font-semibold text-emerald-400 border border-slate-700/50">Remote
-                                    Participant</span>
-                            </div>
-                            <div id="captionOverlay"
-                                class="caption-overlay hidden absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/90 backdrop-blur-xl border border-indigo-500/40 px-5 py-2.5 rounded-xl text-slate-100 text-xs text-center max-w-[85%] shadow-2xl">
-                                <span id="captionSpeaker" class="text-indigo-400 font-bold"></span>: <span
-                                    id="captionText"></span>
-                            </div>
-                        </div>
-
-                        <!-- Speech Input Control -->
-                        <div class="speech-controls flex gap-2">
-                            <input type="text" id="speechInput" placeholder="Type or simulate speech input in meeting..."
-                                class="flex-1 bg-slate-950/80 border border-slate-800 rounded-lg px-3.5 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500" />
-                            <button onclick="sendSpeechInput()"
-                                class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-md cursor-pointer">Send
-                                Speech Chunk</button>
-                        </div>
-
-                        <!-- Dual Section: Live Transcript & Summary -->
-                        <div class="transcript-summary-grid grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-                            <div class="space-y-2 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                                <h3 class="font-bold text-xs text-slate-200 flex items-center justify-between">
-                                    <span>Real-Time Live Meeting Transcript</span>
-                                    <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-                                </h3>
-                                <div id="transcriptBox"
-                                    class="transcript-box h-44 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs flex flex-col gap-1.5 custom-scrollbar font-mono">
-                                    <p class="empty-msg text-slate-500 italic text-center my-auto">Transcripts will render
-                                        live during the call...</p>
-                                </div>
-                            </div>
-                            <div class="space-y-2 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                                <h3 class="font-bold text-xs text-slate-200">AI Meeting Recap</h3>
-                                <button onclick="fetchSummary()"
-                                    class="w-full py-2 rounded-lg font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition-all shadow-sm cursor-pointer">Generate
-                                    Intelligent Recap</button>
-                                <textarea id="summaryDisplay" readonly
-                                    placeholder="Click button above to generate meeting recap..."
-                                    class="w-full h-28 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 resize-none focus:outline-none custom-scrollbar font-sans"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- USER FEATURE PLACEHOLDERS -->
-                <section id="user-features-section" class="section space-y-3">
-                    <h2 class="font-bold text-xl text-slate-100">Interactive Workspaces</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div
-                            class="item-card feature-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md hover:border-indigo-500/50 transition-all group interactive-card">
-                            <div
-                                class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-3">
-                                📹</div>
-                            <h3 class="font-bold text-base text-slate-200">Instant Video Meeting</h3>
-                            <p class="text-slate-400 text-xs mt-1">Select any colleague from the user directory below to initiate a private meeting session.</p>
-                            <button onclick="document.getElementById('org-users-grid').scrollIntoView({behavior: 'smooth'})" class="w-full mt-4 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm cursor-pointer">Find Teammate</button>
-                        </div>
-
-                        <div class="item-card feature-card bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-2xl shadow-md hover:border-indigo-500/50 transition-all group interactive-card flex flex-col justify-between">
-                            <div>
-                                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-3">
-                                    📄</div>
-                                <h3 class="font-bold text-base text-slate-200">Document AI & Files</h3>
-                                <p class="text-slate-400 text-xs mt-1">Upload and chat directly with specifications, PDFs, and team documentation.</p>
-                            </div>
-                            <button onclick="openDocChatModal()"
-                                class="w-full mt-3 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm cursor-pointer">Open Document AI</button>
-                        </div>
-
-                        <!-- DOCUMENT AI CHAT DRAWER / MODAL (TEAMS CHAT PANE STYLE) -->
-                        <div id="doc-chat-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
-                            <div class="w-full max-w-lg bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl">
-                                <!-- Header -->
-                                <div class="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
-                                    <div class="flex items-center gap-2.5">
-                                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-sm">📄</div>
-                                        <div>
-                                            <h3 class="font-bold text-slate-100 text-sm">Document Intelligence Chat</h3>
-                                            <span id="doc-chat-active-name" class="text-xs text-indigo-400">Select a file to query</span>
-                                        </div>
-                                    </div>
-                                    <button onclick="closeDocChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer">✕</button>
-                                </div>
-
-                                <!-- Document Selector & Upload Bar -->
-                                <div class="p-3.5 bg-slate-950/60 border-b border-slate-800 space-y-2.5">
-                                    <div class="flex gap-2">
-                                        <select id="doc-select-dropdown" onchange="onDocumentSelected(this.value)" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                                            <option value="">-- Select Previous Document --</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <input type="file" id="modal-doc-upload-input" accept=".pdf,.docx,.txt,.py,.js"
-                                            class="flex-1 text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-500/20 file:text-indigo-300 hover:file:bg-indigo-500/30 cursor-pointer">
-                                        <button onclick="handleModalDocUpload()" class="px-3.5 py-1.5 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Upload</button>
-                                    </div>
-                                </div>
-
-                                <!-- Messages Box -->
-                                <div id="doc-chat-messages-box" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-950/40">
-                                    <p class="empty-msg text-center text-slate-500 text-xs my-auto">Select a document or upload a new one to ask questions.</p>
-                                </div>
-
-                                <!-- Input Form -->
-                                <form id="doc-chat-input-form" onsubmit="handleSendDocQuestion(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
-                                    <input type="text" id="doc-question-input" placeholder="Ask a question about the document..." autocomplete="off" disabled
-                                        class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50">
-                                    <button type="submit" id="doc-send-btn" disabled class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all disabled:opacity-50 cursor-pointer">Ask</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- TOKEN SUBSCRIPTION PLANS -->
-                <section class="section space-y-4">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-800 pb-3">
-                        <div>
-                            <div class="flex items-center gap-2.5">
-                                <h2 class="font-bold text-xl text-slate-100">Enterprise Token Top-Up Plans</h2>
-                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Instant Refill</span>
-                            </div>
-                            <p class="text-xs text-slate-400 mt-1">High-speed compute tokens for HD WebRTC meetings, LiveKit real-time audio, and Gemini multimodal document intelligence.</p>
-                        </div>
-                    </div>
-
-                    <div id="plans-grid">
-                        <!-- Starter Tier -->
-                        <div class="enterprise-plan-card selected" data-plan-id="1" onclick="selectPlanCard(1, event)">
-                            <div>
-                                <div class="plan-radio-row">
-                                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/90 px-2.5 py-0.5 rounded-full border border-slate-700">Starter Tier</span>
-                                    <span class="plan-radio-pill">
-                                        <span class="plan-radio-dot"></span>
-                                        <span class="radio-label">Selected</span>
-                                    </span>
-                                </div>
-                                <h3 class="font-bold text-lg text-slate-100 mt-1">Starter Pack</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Individual sessions & fast document tests</p>
-
-                                <div class="my-4 pb-4 border-b border-slate-800/80">
-                                    <div class="flex items-baseline gap-1">
-                                        <span class="text-3xl font-extrabold text-white">₹ 199</span>
-                                        <span class="text-xs text-slate-400 font-normal">/ package</span>
-                                    </div>
-                                    <div class="plan-token-pill">
-                                        <span>🪙</span> 100 AI Compute Tokens
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="enterprise-buy-btn mt-4 cursor-pointer" onclick="subscribePlan(1); event.stopPropagation();">
-                                Refill with Stripe
-                            </button>
-                        </div>
-
-                        <!-- Pro Team Tier -->
-                        <div class="enterprise-plan-card featured" data-plan-id="2" onclick="selectPlanCard(2, event)">
-                            <div>
-                                <div class="plan-radio-row">
-                                    <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/40">Most Popular</span>
-                                    <span class="plan-radio-pill">
-                                        <span class="plan-radio-dot"></span>
-                                        <span class="radio-label">Select</span>
-                                    </span>
-                                </div>
-                                <h3 class="font-bold text-lg text-slate-100 mt-1">Pro Team Hub</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">HD video syncs, daily recaps & team chats</p>
-
-                                <div class="my-4 pb-4 border-b border-slate-800/80">
-                                    <div class="flex items-baseline gap-1">
-                                        <span class="text-3xl font-extrabold text-white">₹ 899</span>
-                                        <span class="text-xs text-slate-400 font-normal">/ package</span>
-                                    </div>
-                                    <div class="plan-token-pill">
-                                        <span>🪙</span> 500 AI Compute Tokens
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="enterprise-buy-btn mt-4 cursor-pointer" onclick="subscribePlan(2); event.stopPropagation();">
-                                Refill with Stripe
-                            </button>
-                        </div>
-
-                        <!-- Enterprise Fleet -->
-                        <div class="enterprise-plan-card" data-plan-id="3" onclick="selectPlanCard(3, event)">
-                            <div>
-                                <div class="plan-radio-row">
-                                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/90 px-2.5 py-0.5 rounded-full border border-slate-700">Scale Tier</span>
-                                    <span class="plan-radio-pill">
-                                        <span class="plan-radio-dot"></span>
-                                        <span class="radio-label">Select</span>
-                                    </span>
-                                </div>
-                                <h3 class="font-bold text-lg text-slate-100 mt-1">Enterprise Fleet</h3>
-                                <p class="text-xs text-slate-400 mt-0.5">Unlimited AI queries, dedicated SFU bandwidth</p>
-
-                                <div class="my-4 pb-4 border-b border-slate-800/80">
-                                    <div class="flex items-baseline gap-1">
-                                        <span class="text-3xl font-extrabold text-white">₹ 3,499</span>
-                                        <span class="text-xs text-slate-400 font-normal">/ package</span>
-                                    </div>
-                                    <div class="plan-token-pill">
-                                        <span>🪙</span> 2,500 AI Compute Tokens
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="enterprise-buy-btn mt-4 cursor-pointer" onclick="subscribePlan(3); event.stopPropagation();">
-                                Refill with Stripe
-                            </button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- USER DIRECTORY -->
-                <section class="section space-y-3">
-                    <h2 class="font-bold text-xl text-slate-100">Organization Directory</h2>
-                    <div id="org-users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <p class="text-xs text-slate-500 italic">Loading members...</p>
-                    </div>
-                </section>
-
-                <!-- FRIENDS AND CALL HISTORY -->
-                <section id="friends-section" class="section space-y-3">
-                    <h2 class="font-bold text-xl text-slate-100">Pinned Contacts & Teammates</h2>
-                    <div id="friends-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <p class="text-xs text-slate-500 italic">Loading contacts...</p>
-                    </div>
-                </section>
-            </div>
         </div>
-    </main>
+    </div>
 
     <!-- WHATSAPP / TEAMS CHAT DRAWER MODAL -->
     <div id="chat-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
         <div class="w-full max-w-md bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl">
-            <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+            <!-- Chat Header -->
+            <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center relative">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs" id="chat-header-avatar">💬</div>
                     <div>
@@ -634,97 +725,24 @@
                         <span id="chat-header-status" class="text-[11px] text-emerald-400">Available</span>
                     </div>
                 </div>
-                <button onclick="closeChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer">✕</button>
+                <button onclick="closeChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
             </div>
+
+            <!-- Messages History Box -->
             <div id="chat-messages-box" class="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar bg-slate-950/40">
                 <p class="empty-msg text-center text-slate-500 text-xs my-auto">Loading messages...</p>
             </div>
+
+            <!-- Chat Input Form -->
             <form id="chat-input-form" onsubmit="handleSendChatMessage(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
                 <input type="text" id="chat-message-input" placeholder="Type a message..." autocomplete="off"
                     class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
-                <button type="submit" class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all cursor-pointer">Send</button>
+                <button type="submit" class="px-4 py-2 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all">Send</button>
             </form>
         </div>
     </div>
 
-    <!-- STRIPE IN-APP PAYMENT MODAL -->
-    <div id="payment-modal" class="payment-modal hidden">
-        <div class="payment-box">
-            <button type="button" id="close-payment" class="payment-close cursor-pointer" onclick="paymentclose()">×</button>
-            <div class="payment-title">
-                <div class="payment-icon">💳</div>
-                <div>
-                    <h2>Complete Payment</h2>
-                    <p>Secure payment powered by Stripe</p>
-                </div>
-            </div>
-            <div class="payment-summary">
-                <div class="payment-summary-item">
-                    <span>Plan</span>
-                    <strong id="payment-plan-name">Premium</strong>
-                </div>
-                <div class="payment-summary-item">
-                    <span>Tokens</span>
-                    <strong id="payment-token-count">0 Tokens</strong>
-                </div>
-                <div class="payment-summary-item">
-                    <span>Amount</span>
-                    <strong id="payment-plan-price">₹0</strong>
-                </div>
-            </div>
-            <div class="payment-email-wrapper">
-                <label for="payment-email">Email</label>
-                <input type="email" id="payment-email" readonly>
-            </div>
-            <form id="payment-form">
-                <div id="payment-element" class="stripe-payment-element"></div>
-                <div id="payment-error" class="payment-error"></div>
-                <button type="submit" id="pay-button" class="payment-submit cursor-pointer">Pay Now</button>
-            </form>
-            <div id="payment-success" class="payment-success hidden">
-                <div class="payment-success-icon">✓</div>
-                <h3>Payment Successful</h3>
-                <p>Tokens have been added to your wallet.</p>
-            </div>
-        </div>
-    </div>
-
-   <!-- USER REPORT MODAL -->
-    <div id="reportModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-lg font-bold text-slate-100">Report User</h3>
-                    <p class="text-xs text-slate-400 mt-1">Provide a description and screenshot proof.</p>
-                </div>
-                <button type="button" onclick="closeUserReportPopup()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">✕</button>
-            </div>
-            
-            <form id="report-user-form" onsubmit="submitUserReport(event)" class="space-y-4">
-                <input type="hidden" id="reportedUserIdInput">
-                
-                <div>
-                    <label for="reportDescriptionInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Description <span class="text-rose-400">*</span></label>
-                    <textarea id="reportDescriptionInput" placeholder="Explain what happened..." rows="4" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
-                </div>
-                
-                <div>
-                    <label for="reportScreenshotInput" class="block text-xs font-semibold text-slate-300 mb-1.5">Screenshot Proof</label>
-                    <input type="file" id="reportScreenshotInput" class="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 cursor-pointer" accept="image/*">
-                </div>
-                
-                <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" onclick="closeUserReportPopup()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer">Send Report</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- GLOBAL TOAST NOTIFICATION CONTAINER -->
-    <div id="toast-container" class="fixed bottom-5 right-5 z-[99999] flex flex-col gap-2 pointer-events-none"></div>
-
-    <!-- Application Script -->
+    <!-- Script integration matching app.js -->
     <script src="/app.js"></script>
 </body>
 
