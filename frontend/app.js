@@ -929,7 +929,7 @@ let selectedPlanId = 2; // Auto-select Most Popular by default
 
 function selectPlanCard(planId, event) {
     if (event) event.stopPropagation();
-    let selectedPlanIds = planId;
+    selectedPlanId = Number(planId);
     document.querySelectorAll('.enterprise-plan-card').forEach(card => {
         const id = Number(card.getAttribute('data-plan-id'));
         const radioLabel = card.querySelector('.radio-label');
@@ -3745,7 +3745,8 @@ function closePaymentModal() {
 function openUserReportPopup(reportedUserId) {
     const modal = document.getElementById('reportModal');
     if (modal) {
-        document.getElementById('reportedUserIdInput').value = reportedUserId;
+        const reportedUserInput = document.getElementById('reportedUserIdInput');
+        if (reportedUserInput) reportedUserInput.value = reportedUserId;
         modal.classList.remove('hidden');
     }
 }

@@ -757,6 +757,41 @@
         </div>
     </div>
 
+    <div id="reportModal" class="hidden fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <form onsubmit="submitUserReport(event)" class="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-white">Report user</h2>
+                <button type="button" onclick="closeUserReportPopup()" aria-label="Close report form" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <input id="reportedUserIdInput" type="hidden">
+            <label class="block text-xs font-semibold text-slate-300" for="reportDescriptionInput">Description</label>
+            <textarea id="reportDescriptionInput" required rows="4" class="w-full rounded-lg bg-slate-950 border border-slate-700 p-3 text-sm text-slate-100" placeholder="Describe the issue"></textarea>
+            <label class="block text-xs font-semibold text-slate-300" for="reportScreenshotInput">Screenshot (optional)</label>
+            <input id="reportScreenshotInput" type="file" accept="image/*" class="w-full text-xs text-slate-300">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closeUserReportPopup()" class="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300">Cancel</button>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">Submit report</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="payment-modal" class="payment-modal hidden">
+        <div class="payment-box text-slate-100">
+            <button type="button" onclick="closePaymentModal()" aria-label="Close payment" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <h2 id="payment-plan-name" class="text-xl font-bold">Token Plan</h2>
+            <p class="mt-2 text-sm text-slate-300"><span id="payment-token-count"></span> <span id="payment-plan-price" class="ml-2 font-semibold"></span></p>
+            <form id="payment-form" class="mt-5 space-y-4">
+                <label class="block text-xs font-semibold text-slate-300" for="payment-email">Email</label>
+                <input id="payment-email" type="email" readonly class="w-full rounded-lg bg-slate-950 border border-slate-700 p-3 text-sm text-slate-100">
+                <div id="payment-element"></div>
+                <p id="payment-error" class="hidden text-sm text-rose-400"></p>
+                <div id="payment-success" class="hidden text-sm font-semibold text-emerald-400">Payment successful.</div>
+                <button id="pay-button" type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-500">Pay Now</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://js.stripe.com/v3/"></script>
     <!-- Script integration matching app.js -->
     <script src="/app.js"></script>
 </body>
