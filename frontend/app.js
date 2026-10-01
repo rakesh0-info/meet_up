@@ -1456,37 +1456,23 @@ function updateNotificationUI(notifications) {
         let incomingCallHTML = '';
 
         if (isIncomingCall && roomId) {
+            const safeRoomId = String(roomId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
             incomingCallHTML = `
-                <div
-                    class="notif-actions mt-2"
-                    onclick="event.stopPropagation()"
-                >
-                   <button
-    type="button"
-    class="btn-success"
-    onclick="respondRequest(
-        ${Number(senderId)},
-        'yes',
-        ${Number(n.id)},
-        event
-    )"
->
-    Accept
-</button>
+                <div class="notif-actions mt-2" onclick="event.stopPropagation()">
+                    <button
+                        type="button"
+                        class="btn-success"
+                        onclick="respondToCall('${safeRoomId}', true, ${Number(n.id)})">
+                        Accept
+                    </button>
 
-                   <button
-    type="button"
-    class="btn-danger"
-    onclick="respondRequest(
-        ${Number(senderId)},
-        'no',
-        ${Number(n.id)},
-        event
-    )"
->
-    Reject
-</button>
+                    <button
+                        type="button"
+                        class="btn-danger"
+                        onclick="respondToCall('${safeRoomId}', false, ${Number(n.id)})">
+                        Reject
+                    </button>
                 </div>
             `;
         }
@@ -2813,7 +2799,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // Triggered when user clicks a plan button
 // async function subscribePlan(planId) {
 //     if (!accessToken) {
-//         showToast('Please log in before activating a token plan.', 'info');
+//         showToast('Please log in before activating a token plan.', 'info')
 //         return;
 //     }
 
@@ -2824,55 +2810,55 @@ window.addEventListener('DOMContentLoaded', () => {
 // async function openPaymentPopup(planId) {
 //     try {
 //         // Calls FastAPI /activate_plan endpoint which creates a PaymentIntent
-//         const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST');
-//         const clientSecret = response.client_secret;
+//         const response = await request(`/api/v1/user/activate_plan?plan_id=${planId}`, 'POST')
+//         const clientSecret = response.client_secret
 
 //         if (!clientSecret) {
-//             showToast("Failed to retrieve payment session.", "error");
+//             showToast("Unable to initialize payment.", "error")
 //             return;
 //         }
 
 //         // Show the modal container
-//         document.getElementById('payment-modal').classList.remove('hidden');
+//         document.getElementById('payment-modal').classList.remove('hidden')
 
 //         // Initialize and mount Stripe Payment Element
-//         elements = stripeInstance.elements({ clientSecret });
-//         const paymentElement = elements.create('payment');
-//         paymentElement.mount('#payment-element');
+//         elements = stripeInstance.elements({ clientSecret })
+//         const paymentElement = elements.create('payment')
+//         paymentElement.mount('#payment-element')
 
 //     } catch (err) {
-//         console.error("Payment initialization error:", err);
-//         showToast("Failed to initialize payment modal.", "error");
+//         console.error("Payment initialization error:", err)
+//         showToast("Failed to initialize payment modal.", "error")
 //     }
 // }
 
 // // Handle payment form submission inside the popup (Only ONE listener)
 // document.getElementById('payment-form').addEventListener('submit', async (e) => {
-//     e.preventDefault();
+//     e.preventDefault()
 
-//     const submitButton = document.getElementById('submit-payment');
-//     submitButton.disabled = true;
-//     submitButton.textContent = "Processing...";
+//     const submitButton = document.getElementById('submit-payment')
+//     submitButton.disabled = true
+//     submitButton.textContent = "Processing..."
 
 //     const { error } = await stripeInstance.confirmPayment({
 //         elements,
 //         confirmParams: {
 //             return_url: window.location.origin + '/?payment=success', 
 //         },
-//     });
+//     })
 
 //     if (error) {
-//         showToast(error.message, "error");
-//         submitButton.disabled = false;
-//         submitButton.textContent = "Pay Now";
+//         showToast(error.message, "error")
+//         submitButton.disabled = false
+//         submitButton.textContent = "Pay Now"
 //     }
-// });
+// })
 
 // function closePaymentModal() {
-//     document.getElementById('payment-modal').classList.add('hidden');
-//     const submitButton = document.getElementById('submit-payment');
-//     submitButton.disabled = false;
-//     submitButton.textContent = "Pay Now";
+//     document.getElementById('payment-modal').classList.add('hidden')
+//     const submitButton = document.getElementById('submit-payment')
+//     submitButton.disabled = false
+//     submitButton.textContent = "Pay Now"
 // }
 
 const stripe = Stripe(
