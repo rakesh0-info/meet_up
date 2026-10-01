@@ -717,15 +717,30 @@
     <div id="chat-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
         <div class="w-full max-w-md bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl">
             <!-- Chat Header -->
-            <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center relative">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs" id="chat-header-avatar">💬</div>
-                    <div>
-                        <h3 id="chat-header-name" class="font-bold text-slate-100 text-xs">Chat Partner</h3>
+            <div class="p-3.5 bg-slate-950 border-b border-slate-800 flex justify-between items-center gap-2 relative">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 shrink-0 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs"
+                        id="chat-header-avatar">💬</div>
+                    <div class="min-w-0">
+                        <h3 id="chat-header-name" class="font-bold text-slate-100 text-xs truncate">Chat Partner</h3>
                         <span id="chat-header-status" class="text-[11px] text-emerald-400">Available</span>
                     </div>
                 </div>
-                <button onclick="closeChatModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
+
+                <div class="flex shrink-0 items-center gap-1.5">
+                    <button type="button" onclick="handleBlockFromChat()"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-semibold hover:bg-rose-500/25">
+                        Block
+                    </button>
+                    <button type="button" onclick="handleUnblockFromChat()"
+                        class="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold hover:bg-emerald-500/25">
+                        Unblock
+                    </button>
+                    <button type="button" onclick="closeChatModal()" aria-label="Close chat"
+                        class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">
+                        ✕
+                    </button>
+                </div>
             </div>
 
             <!-- Messages History Box -->
