@@ -1441,14 +1441,14 @@ async def report_to_admin(
 
 
 
+
 @router.post("/extract_text_from_image")
-async def extract_text_from_image(image_path:UploadFile = File(...)):
+async def extract_text_from_image(image_path: UploadFile = File(...)):
     try:
-       
-        image = Image.open(image_path.file)
         
-       
-        extracted_text = await read_image(image)
+        file_bytes = await image_path.read()
+        
+        extracted_text = await read_image(file_bytes)
         
         return {"file": image_path.filename, "extracted_text": extracted_text}
     

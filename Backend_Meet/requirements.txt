@@ -153,6 +153,5 @@ apscheduler==3.11.3
 resend==2.47.0
 sendgrid
 pinecone
-pytesseract
-Pillow
-setuptools
+easyocr
+pillow
