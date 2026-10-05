@@ -7,7 +7,9 @@ import re
 import time
 from typing import List, Optional
 
+from PIL import Image
 from click import DateTime
+from pytesseract import pytesseract
 from dataBase_Model.blockUser_model import UserBlock
 from dataBase_Model.chatModel import Chat_M
 from enums.upload_status import up_status
@@ -75,6 +77,7 @@ from mail.sendmail import send_key
 from requestmodel.resetRequest import reset_pass
 from util_validate.pasword_name_validate import passwordCheack
 from dataBase_Model.reportModel import Reports
+from service.ocr import read_image, format_ocr_text
 
 
 client = genai.Client(
@@ -1407,7 +1410,7 @@ async def report_to_admin(
         admin_user = db.query(User).filter(User.role == Role.ADMIN).first()
         admin_id = admin_user.id if admin_user else 1
 
-        # 3. Create notification record
+        
         new_report_notification = Notification(
             user_id=admin_id, 
             sender_id=curr.id,
@@ -1416,7 +1419,7 @@ async def report_to_admin(
         )
         db.add(new_report_notification)
 
-        # 4. Single atomic commit for both records
+      
         db.commit()
         db.refresh(new_report)
 
@@ -1434,4 +1437,23 @@ async def report_to_admin(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+
+
+@router.post("/extract_text_from_image")
+async def extract_text_from_image(image_path:UploadFile = File(...)):
+    try:
+       
+        image = Image.open(image_path.file)
+        
+       
+        extracted_text = await read_image(image)
+        
+        return {"file": image_path.filename, "extracted_text": extracted_text}
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract text from image: {str(e)}"
         )
