@@ -4832,3 +4832,106 @@ async function unblockUser(email) {
         showToast("Failed to unblock user.", "error");
     }
 }
+
+function openImageExtractModal() {
+    const modal = document.getElementById('image-extract-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeImageExtractModal() {
+    const modal = document.getElementById('image-extract-modal');
+    if (modal) modal.classList.add('hidden');
+    const fileInput = document.getElementById('extract-image-input');
+    if (fileInput) fileInput.value = '';
+}
+
+function closeImageResultModal() {
+    const modal = document.getElementById('image-result-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function handleExtractImageText() {
+    const fileInput = document.getElementById('extract-image-input');
+    if (!fileInput || fileInput.files.length === 0) {
+        showToast("Please select an image file first.", "error");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('image_path', file);
+
+    try {
+        showToast("Extracting text from image...", "info");
+        
+        const headers = {};
+        if (isRealJwt(accessToken)) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        const response = await fetch(`${BASE_URL}/api/v1/user/extract_text_from_image`, {
+            method: 'POST',
+            headers: headers,
+            body: formData
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const detail = data.detail;
+            const errorMessage = Array.isArray(detail)
+                ? detail.map(error => `${(error.loc || []).join('.')}: ${error.msg || 'Invalid value'}`).join('; ')
+                : typeof detail === 'string'
+                    ? detail
+                    : detail
+                        ? JSON.stringify(detail)
+                        : 'Failed to extract text from image.';
+            throw new Error(errorMessage);
+        }
+
+        // Close upload modal and show beautiful result modal
+        closeImageExtractModal();
+        renderImageExtractionResult(data);
+
+    } catch (e) {
+        console.error("Image text extraction error:", e);
+        showToast(e.message || "An error occurred during text extraction.", "error");
+    }
+}
+
+function renderImageExtractionResult(responsedata) {
+    const resultModal = document.getElementById('image-result-modal');
+    const contentBox = document.getElementById('image-result-content');
+    
+    if (!contentBox) return;
+
+    // Format the response properly depending on whether it's a string or an object structure
+    let formattedHtml = "";
+    
+    if (typeof responsedata === 'string') {
+        formattedHtml = escapeHtml(responsedata);
+    } else if (typeof responsedata === 'object' && responsedata !== null) {
+        // Handle common response fields like text, extracted_text, result, etc.
+        const primaryText = responsedata.text || responsedata.extracted_text || responsedata.result || JSON.stringify(responsedata, null, 2);
+        
+        formattedHtml = `<div class="space-y-3">
+            <div class="text-indigo-400 font-bold border-b border-slate-800 pb-2">📄 Extracted Content</div>
+            <div class="text-slate-200">${escapeHtml(primaryText).replace(/\n/g, '<br>')}</div>
+        </div>`;
+        
+        // If there are extra structured fields, display them nicely
+        const extraKeys = Object.keys(responsedata).filter(k => !['text', 'extracted_text', 'result'].includes(k));
+        if (extraKeys.length > 0) {
+            formattedHtml += `<div class="mt-4 pt-3 border-t border-slate-800 space-y-1 text-slate-400">
+                <div class="font-semibold text-slate-300">Additional Metadata:</div>`;
+            extraKeys.forEach(key => {
+                formattedHtml += `<div><span class="text-indigo-300">${escapeHtml(key)}:</span> ${escapeHtml(JSON.stringify(responsedata[key]))}</div>`;
+            });
+            formattedHtml += `</div>`;
+        }
+    } else {
+        formattedHtml = "No extraction data returned.";
+    }
+
+    contentBox.innerHTML = formattedHtml;
+    if (resultModal) resultModal.classList.remove('hidden');
+}

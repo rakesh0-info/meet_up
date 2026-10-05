@@ -155,3 +155,5 @@ sendgrid
 pinecone
 # easyocr
 pillow==11.3.0
+
+bs4
