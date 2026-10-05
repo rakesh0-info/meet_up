@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from PIL import Image
 from click import DateTime
-from pytesseract import pytesseract
+
 from dataBase_Model.blockUser_model import UserBlock
 from dataBase_Model.chatModel import Chat_M
 from enums.upload_status import up_status
