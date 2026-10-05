@@ -1464,4 +1464,4 @@ async def extract_text_from_image(image_path: UploadFile = File(...)):
 @router.get("/scrape_website")
 async def get_content_form_url(url:str):
     page_info = get_full_website_details(url)
-    return page_info
+    return page_info.sample_paragraphs

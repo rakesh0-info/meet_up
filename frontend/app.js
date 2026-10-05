@@ -4845,6 +4845,131 @@ function closeImageExtractModal() {
     if (fileInput) fileInput.value = '';
 }
 
+function openWebsiteScrapeModal() {
+    const modal = document.getElementById('website-scrape-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeWebsiteScrapeModal() {
+    const modal = document.getElementById('website-scrape-modal');
+    if (modal) modal.classList.add('hidden');
+    const urlInput = document.getElementById('website-scrape-url');
+    if (urlInput) urlInput.value = '';
+}
+
+function formatApiErrorDetail(detail, fallback) {
+    if (Array.isArray(detail)) {
+        return detail.map(error => `${(error.loc || []).join('.')}: ${error.msg || 'Invalid value'}`).join('; ');
+    }
+    if (typeof detail === 'string') return detail;
+    return detail ? JSON.stringify(detail) : fallback;
+}
+
+async function handleWebsiteScrape(event) {
+    event.preventDefault();
+
+    const urlInput = document.getElementById('website-scrape-url');
+    const url = urlInput ? urlInput.value.trim() : '';
+    if (!url) {
+        showToast('Enter a website URL first.', 'error');
+        return;
+    }
+
+    try {
+        const parsedUrl = new URL(url);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            throw new Error('Enter an HTTP or HTTPS website URL.');
+        }
+
+        showToast('Scraping website...', 'info');
+        const response = await fetch(
+            `${BASE_URL}/api/v1/user/scrape_website?url=${encodeURIComponent(url)}`
+        );
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(formatApiErrorDetail(data.detail, 'Failed to scrape website.'));
+        }
+
+        closeWebsiteScrapeModal();
+        renderWebsiteScrapeResult(data);
+    } catch (error) {
+        console.error('Website scraping error:', error);
+        showToast(error.message || 'An error occurred while scraping the website.', 'error');
+    }
+}
+
+function renderWebsiteScrapeResult(responseData) {
+    const resultModal = document.getElementById('image-result-modal');
+    const title = document.getElementById('image-result-title');
+    const contentBox = document.getElementById('image-result-content');
+    if (!contentBox) return;
+
+    if (title) title.textContent = '🌐 Website Scrape Results';
+
+    if (!responseData || typeof responseData !== 'object') {
+        contentBox.innerHTML = `<p>${escapeHtml(String(responseData || 'No scrape data returned.'))}</p>`;
+        if (resultModal) resultModal.classList.remove('hidden');
+        return;
+    }
+
+    const pageTitle = escapeHtml(responseData.title || 'Untitled page');
+    const introduction = responseData.brief_introduction
+        ? `<p class="text-sm text-slate-300 leading-relaxed">${escapeHtml(responseData.brief_introduction)}</p>`
+        : '';
+    const metaDescription = responseData.meta_description
+        ? `<p class="mt-2 text-xs text-slate-400 leading-relaxed">${escapeHtml(responseData.meta_description)}</p>`
+        : '';
+
+    let sourceMarkup = escapeHtml(responseData.url || 'Source URL unavailable');
+    try {
+        const sourceUrl = new URL(responseData.url);
+        if (['http:', 'https:'].includes(sourceUrl.protocol)) {
+            sourceMarkup = `<a href="${escapeHtml(sourceUrl.href)}" target="_blank" rel="noopener noreferrer" class="break-all text-cyan-300 hover:text-cyan-200 underline underline-offset-2">${escapeHtml(sourceUrl.href)}</a>`;
+        }
+    } catch (error) { }
+
+    const renderHeadingList = (label, headings) => {
+        if (!Array.isArray(headings) || headings.length === 0) return '';
+        return `<section class="space-y-2">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(label)}</h4>
+            <ul class="space-y-1.5">${headings.map(heading => `<li class="border-l-2 border-cyan-500/50 pl-3 text-sm text-slate-200">${escapeHtml(heading)}</li>`).join('')}</ul>
+        </section>`;
+    };
+
+    const paragraphs = Array.isArray(responseData.sample_paragraphs)
+        ? responseData.sample_paragraphs
+        : [];
+    const paragraphMarkup = paragraphs.length
+        ? `<section class="space-y-3">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Sample paragraphs</h4>
+            <ol class="list-decimal list-inside space-y-3">${paragraphs.map(paragraph => `<li class="text-sm leading-relaxed text-slate-300">${escapeHtml(paragraph)}</li>`).join('')}</ol>
+        </section>`
+        : '';
+    const formatCount = value => Number.isFinite(Number(value))
+        ? Number(value).toLocaleString()
+        : '—';
+
+    contentBox.innerHTML = `<article class="space-y-5">
+        <header class="space-y-2 border-b border-slate-800 pb-4">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">Scraped page</p>
+            <h2 class="text-lg font-bold text-white break-words">${pageTitle}</h2>
+            <div class="text-xs">${sourceMarkup}</div>
+            ${introduction}
+            ${metaDescription}
+        </header>
+        <div class="grid grid-cols-2 gap-4 border-b border-slate-800 pb-4">
+            <div><p class="text-2xl font-bold text-cyan-300">${formatCount(responseData.total_paragraphs_found)}</p><p class="text-xs text-slate-400">Paragraphs found</p></div>
+            <div><p class="text-2xl font-bold text-indigo-300">${formatCount(responseData.total_links_found)}</p><p class="text-xs text-slate-400">Links found</p></div>
+        </div>
+        ${renderHeadingList('Main heading', responseData.headings_h1)}
+        ${renderHeadingList('Section headings', responseData.headings_h2)}
+        ${paragraphMarkup}
+    </article>`;
+
+    if (resultModal) resultModal.classList.remove('hidden');
+}
+
 function closeImageResultModal() {
     const modal = document.getElementById('image-result-modal');
     if (modal) modal.classList.add('hidden');
@@ -4877,15 +5002,7 @@ async function handleExtractImageText() {
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-            const detail = data.detail;
-            const errorMessage = Array.isArray(detail)
-                ? detail.map(error => `${(error.loc || []).join('.')}: ${error.msg || 'Invalid value'}`).join('; ')
-                : typeof detail === 'string'
-                    ? detail
-                    : detail
-                        ? JSON.stringify(detail)
-                        : 'Failed to extract text from image.';
-            throw new Error(errorMessage);
+            throw new Error(formatApiErrorDetail(data.detail, 'Failed to extract text from image.'));
         }
 
         // Close upload modal and show beautiful result modal
@@ -4898,11 +5015,14 @@ async function handleExtractImageText() {
     }
 }
 
-function renderImageExtractionResult(responsedata) {
+function renderImageExtractionResult(responsedata, resultTitle = '✨ Image Extraction Results') {
     const resultModal = document.getElementById('image-result-modal');
+    const title = document.getElementById('image-result-title');
     const contentBox = document.getElementById('image-result-content');
     
     if (!contentBox) return;
+
+    if (title) title.textContent = resultTitle;
 
     // Format the response properly depending on whether it's a string or an object structure
     let formattedHtml = "";
