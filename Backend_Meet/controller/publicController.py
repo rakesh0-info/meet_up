@@ -77,7 +77,7 @@ from mail.sendmail import send_key
 from requestmodel.resetRequest import reset_pass
 from util_validate.pasword_name_validate import passwordCheack
 from dataBase_Model.reportModel import Reports
-from service.ocr import read_image, format_ocr_text
+from service.ocr import extract_text_via_api
 
 
 client = genai.Client(
@@ -1444,16 +1444,16 @@ async def report_to_admin(
 
 @router.post("/extract_text_from_image")
 async def extract_text_from_image(image_path: UploadFile = File(...)):
-    try:
-        
-        file_bytes = await image_path.read()
-        
-        extracted_text = await read_image(file_bytes)
-        
-        return {"file": image_path.filename, "extracted_text": extracted_text}
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to extract text from image: {str(e)}"
-        )
+  try:
+    file_bytes = await image_path.read()
+
+    # Pass the bytes and the original filename
+    extracted_text = extract_text_via_api(file_bytes, image_path.filename)
+
+    return {"file": image_path.filename, "extracted_text": extracted_text}
+
+  except Exception as e:
+    raise HTTPException(
+        status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"Failed to extract text from image: {str(e)}",
+    )
