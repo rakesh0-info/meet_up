@@ -1,6 +1,6 @@
 
-//  const BASE_URL = 'http://127.0.0.1:8000';
-  const BASE_URL = 'https://meet-up-0kqq.onrender.com';
+  const BASE_URL = 'http://127.0.0.1:8000';
+//   const BASE_URL = 'https://meet-up-0kqq.onrender.com';
 let accessToken = localStorage.getItem('access_token') || '';
 let currentEmail = '';
 let currentUserRole = '';
@@ -4914,11 +4914,64 @@ function renderWebsiteScrapeResult(responseData) {
     }
 
     const pageTitle = escapeHtml(responseData.title || 'Untitled page');
+    
     const introduction = responseData.brief_introduction
-        ? `<p class="text-sm text-slate-300 leading-relaxed">${escapeHtml(responseData.brief_introduction)}</p>`
+        ? `<section class="space-y-1.5">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Overview</h4>
+            <p class="text-sm text-slate-300 leading-relaxed">${escapeHtml(responseData.brief_introduction)}</p>
+          </section>`
         : '';
+        
     const metaDescription = responseData.meta_description
-        ? `<p class="mt-2 text-xs text-slate-400 leading-relaxed">${escapeHtml(responseData.meta_description)}</p>`
+        ? `<section class="space-y-1.5">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Meta Description</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">${escapeHtml(responseData.meta_description)}</p>
+          </section>`
+        : '';
+
+    // Function to safely convert basic markdown (bold and bullet points) to HTML
+    const parseMarkdownToHtml = (text) => {
+        if (!text) return '';
+        let safeText = escapeHtml(text);
+        
+        // Convert **bold** to <strong>
+        safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+        
+        // Split into lines to handle bullet points
+        const lines = safeText.split('\n');
+        let inList = false;
+        let htmlResult = '';
+
+        for (let line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+                if (!inList) {
+                    htmlResult += '<ul class="list-disc list-inside space-y-1.5 my-2 pl-2">';
+                    inList = true;
+                }
+                htmlResult += `<li>${trimmed.substring(2)}</li>`;
+            } else {
+                if (inList) {
+                    htmlResult += '</ul>';
+                    inList = false;
+                }
+                if (trimmed) {
+                    htmlResult += `<p class="mb-2">${trimmed}</p>`;
+                }
+            }
+        }
+        if (inList) {
+            htmlResult += '</ul>';
+        }
+        return htmlResult;
+    };
+
+    const aiSummaryHtml = parseMarkdownToHtml(responseData.ai_summary);
+    const aiSummary = aiSummaryHtml
+        ? `<section class="space-y-2 pt-2 border-t border-slate-800">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">AI Summary</h4>
+            <div class="text-sm leading-relaxed text-slate-300">${aiSummaryHtml}</div>
+        </section>`
         : '';
 
     let sourceMarkup = escapeHtml(responseData.url || 'Source URL unavailable');
@@ -4931,45 +4984,26 @@ function renderWebsiteScrapeResult(responseData) {
 
     const renderHeadingList = (label, headings) => {
         if (!Array.isArray(headings) || headings.length === 0) return '';
-        return `<section class="space-y-2">
+        return `<section class="space-y-2 pt-2 border-t border-slate-800">
             <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(label)}</h4>
             <ul class="space-y-1.5">${headings.map(heading => `<li class="border-l-2 border-cyan-500/50 pl-3 text-sm text-slate-200">${escapeHtml(heading)}</li>`).join('')}</ul>
         </section>`;
     };
 
-    const paragraphs = Array.isArray(responseData.sample_paragraphs)
-        ? responseData.sample_paragraphs
-        : [];
-    const paragraphMarkup = paragraphs.length
-        ? `<section class="space-y-3">
-            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Sample paragraphs</h4>
-            <ol class="list-decimal list-inside space-y-3">${paragraphs.map(paragraph => `<li class="text-sm leading-relaxed text-slate-300">${escapeHtml(paragraph)}</li>`).join('')}</ol>
-        </section>`
-        : '';
-    const formatCount = value => Number.isFinite(Number(value))
-        ? Number(value).toLocaleString()
-        : '—';
-
-    contentBox.innerHTML = `<article class="space-y-5">
-        <header class="space-y-2 border-b border-slate-800 pb-4">
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">Scraped page</p>
+    contentBox.innerHTML = `<article class="space-y-4">
+        <header class="flex flex-col space-y-1.5 border-b border-slate-800 pb-4">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">Scraped Page</span>
             <h2 class="text-lg font-bold text-white break-words">${pageTitle}</h2>
-            <div class="text-xs">${sourceMarkup}</div>
-            ${introduction}
-            ${metaDescription}
+            <div class="text-xs pt-0.5">${sourceMarkup}</div>
         </header>
-        <div class="grid grid-cols-2 gap-4 border-b border-slate-800 pb-4">
-            <div><p class="text-2xl font-bold text-cyan-300">${formatCount(responseData.total_paragraphs_found)}</p><p class="text-xs text-slate-400">Paragraphs found</p></div>
-            <div><p class="text-2xl font-bold text-indigo-300">${formatCount(responseData.total_links_found)}</p><p class="text-xs text-slate-400">Links found</p></div>
-        </div>
-        ${renderHeadingList('Main heading', responseData.headings_h1)}
-        ${renderHeadingList('Section headings', responseData.headings_h2)}
-        ${paragraphMarkup}
+        ${introduction}
+        ${metaDescription}
+        ${aiSummary}
+        ${renderHeadingList('Main Headings (H1)', responseData.headings_h1)}
     </article>`;
 
     if (resultModal) resultModal.classList.remove('hidden');
 }
-
 function closeImageResultModal() {
     const modal = document.getElementById('image-result-modal');
     if (modal) modal.classList.add('hidden');

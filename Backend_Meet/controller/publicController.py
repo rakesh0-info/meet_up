@@ -1444,7 +1444,7 @@ async def report_to_admin(
 
 
 @router.post("/extract_text_from_image")
-async def extract_text_from_image(image_path: UploadFile = File(...)):
+async def extract_text_from_image(image_path: UploadFile = File(...), cur : User = Depends(require_roles(Role.USER,Role.ADMIN))):
   try:
     file_bytes = await image_path.read()
 
@@ -1460,8 +1460,51 @@ async def extract_text_from_image(image_path: UploadFile = File(...)):
     )
 
 
-
 @router.get("/scrape_website")
-async def get_content_form_url(url:str):
+async def get_content_form_url(url: str):
     page_info = get_full_website_details(url)
-    return page_info.sample_paragraphs
+    
+    # Handle case where the scraping function returns None or fails
+    if not page_info or not isinstance(page_info, dict):
+        return {
+            "url": url,
+            "title": None,
+            "meta_description": None,
+            "brief_introduction": None,
+            "ai_summary": "Failed to retrieve or parse website content.",
+            "headings_h1": [],
+        }
+
+    page_content = page_info.get("sample_paragraphs", "")
+    
+    prompt = f"""
+    You are a helpful website analyzer assistant.
+    Who can analyze the full website and get the important information from the website and provide a brief summary of the website.
+    Answer the user's question using the provided document context and previous conversation history if it's a follow-up question.
+    Keep your answer clear, structured, and direct.
+
+    Document Context:
+    {page_content}
+    """
+    
+    ai_answer = ""
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",  
+            contents=prompt
+        )
+        ai_answer = response.text
+    except Exception as e:
+        ai_answer = f"Error generating AI summary: {str(e)}"
+
+    return {
+        "url": url,
+        "title": page_info.get("title"),
+        "meta_description": page_info.get("meta_description"),
+        "brief_introduction": page_info.get("brief_introduction"),
+        "ai_summary": ai_answer,
+        "headings_h1": page_info.get("headings_h1"),
+    }
+
+
+
